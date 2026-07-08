@@ -51,7 +51,7 @@ export function AppearanceSettings() {
       <SettingBlock
         icon={<ZoomIn className="size-4" />}
         title="Interface zoom"
-        description="Increases or decreases the size of everything in the app (rail, tabs…). You can also use Ctrl + / − with focus outside the terminal."
+        description="Increases or decreases the size of everything in the app (rail, tabs…). You can also use Ctrl + / − or Ctrl + mouse wheel, even inside a terminal."
       >
         <div className="flex items-center gap-2">
           <Button

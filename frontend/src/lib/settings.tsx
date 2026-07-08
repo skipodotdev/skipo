@@ -6,6 +6,16 @@ import {
   useState,
 } from "react"
 import type { ReactNode } from "react"
+import {
+  DEFAULT_HOTKEYS,
+  isRecordingTarget,
+  loadHotkeys,
+  matchesCombo,
+  saveHotkeys,
+  type Combo,
+  type HotkeyId,
+  type Hotkeys,
+} from "./hotkeys"
 
 const FONT_STORAGE_KEY = "skipo.terminal.font"
 const THEME_STORAGE_KEY = "skipo.appearance.theme"
@@ -76,6 +86,10 @@ interface SettingsValue {
   setTerminalTheme: (theme: TerminalTheme) => void
   /** Terminal theme resolved to a concrete scheme (match already mapped). */
   resolvedTerminalTheme: ResolvedTheme
+  /** Configurable global keyboard shortcuts, keyed by action. */
+  hotkeys: Hotkeys
+  setHotkey: (id: HotkeyId, combo: Combo) => void
+  resetHotkey: (id: HotkeyId) => void
 }
 
 const SettingsContext = createContext<SettingsValue | null>(null)
@@ -89,6 +103,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [zoom, setZoomState] = useState<number>(readZoom)
   const [terminalTheme, setTerminalThemeState] =
     useState<TerminalTheme>(readTerminalTheme)
+  const [hotkeys, setHotkeys] = useState<Hotkeys>(loadHotkeys)
 
   const setFont = useCallback((next: string) => {
     setFontState(next)
@@ -106,9 +121,35 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(ZOOM_STORAGE_KEY, String(clamped))
   }, [])
 
+  // zoomBy applies a relative step off the latest value so rapid wheel ticks
+  // accumulate instead of collapsing to a single step between renders.
+  const zoomBy = useCallback((delta: number) => {
+    setZoomState((prev) => {
+      const clamped = clampZoom(prev + delta)
+      localStorage.setItem(ZOOM_STORAGE_KEY, String(clamped))
+      return clamped
+    })
+  }, [])
+
   const setTerminalTheme = useCallback((next: TerminalTheme) => {
     setTerminalThemeState(next)
     localStorage.setItem(TERMINAL_THEME_STORAGE_KEY, next)
+  }, [])
+
+  const setHotkey = useCallback((id: HotkeyId, combo: Combo) => {
+    setHotkeys((prev) => {
+      const next = { ...prev, [id]: combo }
+      saveHotkeys(next)
+      return next
+    })
+  }, [])
+
+  const resetHotkey = useCallback((id: HotkeyId) => {
+    setHotkeys((prev) => {
+      const next = { ...prev, [id]: DEFAULT_HOTKEYS[id] }
+      saveHotkeys(next)
+      return next
+    })
   }, [])
 
   // Toggle the `.dark` class on <html> and track the resolved scheme. For
@@ -133,26 +174,41 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     document.documentElement.style.zoom = String(zoom)
   }, [zoom])
 
-  // Ctrl/Cmd +/-/0 zoom, but only when focus is outside a terminal — the
-  // terminal owns those chords for its own bindings.
+  // Zoom via keyboard chords or Ctrl/Cmd + mouse wheel. Both listen on the
+  // capture phase so they win even inside a terminal, which otherwise swallows
+  // modifier chords and wheel events; propagation is stopped so the PTY never
+  // sees them. The wheel listener is non-passive to allow preventDefault, and
+  // bails on non-Ctrl scrolls so normal scrolling still works.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (!(event.ctrlKey || event.metaKey)) return
-      if (document.activeElement?.closest("[data-terminal]")) return
-      if (event.key === "+" || event.key === "=") {
+      if (isRecordingTarget(event)) return
+      if (matchesCombo(event, hotkeys.zoomIn)) {
         event.preventDefault()
-        setZoom(zoom + ZOOM_STEP)
-      } else if (event.key === "-") {
+        event.stopPropagation()
+        zoomBy(ZOOM_STEP)
+      } else if (matchesCombo(event, hotkeys.zoomOut)) {
         event.preventDefault()
-        setZoom(zoom - ZOOM_STEP)
-      } else if (event.key === "0") {
+        event.stopPropagation()
+        zoomBy(-ZOOM_STEP)
+      } else if (matchesCombo(event, hotkeys.zoomReset)) {
         event.preventDefault()
+        event.stopPropagation()
         setZoom(DEFAULT_ZOOM)
       }
     }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [zoom, setZoom])
+    const onWheel = (event: WheelEvent) => {
+      if (!event.ctrlKey) return
+      event.preventDefault()
+      event.stopPropagation()
+      zoomBy(event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)
+    }
+    window.addEventListener("keydown", onKey, true)
+    window.addEventListener("wheel", onWheel, { capture: true, passive: false })
+    return () => {
+      window.removeEventListener("keydown", onKey, true)
+      window.removeEventListener("wheel", onWheel, true)
+    }
+  }, [zoomBy, setZoom, hotkeys])
 
   const resolvedTerminalTheme: ResolvedTheme =
     terminalTheme === "match" ? resolvedTheme : terminalTheme
@@ -170,6 +226,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         terminalTheme,
         setTerminalTheme,
         resolvedTerminalTheme,
+        hotkeys,
+        setHotkey,
+        resetHotkey,
       }}
     >
       {children}

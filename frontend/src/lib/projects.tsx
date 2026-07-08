@@ -17,6 +17,8 @@ import {
   setActiveSession,
   type SessionState,
 } from "./sessions"
+import { isRecordingTarget, matchesCombo } from "./hotkeys"
+import { useSettings } from "./settings"
 
 interface ProjectsValue {
   projects: Project[]
@@ -78,6 +80,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   sessionsRef.current = sessions
   const navigate = useNavigate()
   const activeProjectId = useMatch("/projects/:projectId")?.params.projectId
+  const { hotkeys } = useSettings()
 
   const applyLoaded = useCallback((loaded: StoreProject[]) => {
     setProjects(loaded.map(toProject))
@@ -133,6 +136,28 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     setSessions(next)
     void Store.AddSession(projectId, sessionId, created.label, project.nextSeq)
   }, [])
+
+  // The new-session shortcut opens a session in the active project (mirrors the
+  // "+" button). It fires even with terminal focus, so it stays reachable while
+  // working in a terminal — but the terminal (ghostty-web) stops modifier chords
+  // from bubbling, so this listens on the capture phase (top-down, before the
+  // terminal sees the key) and stops propagation so the PTY never receives it.
+  // Bails while a hotkey is being recorded so rebinding does not trigger it.
+  useEffect(() => {
+    if (!activeProjectId) {
+      return
+    }
+    const onKey = (event: KeyboardEvent) => {
+      if (isRecordingTarget(event)) return
+      if (matchesCombo(event, hotkeys.newSession)) {
+        event.preventDefault()
+        event.stopPropagation()
+        newSession(activeProjectId)
+      }
+    }
+    window.addEventListener("keydown", onKey, true)
+    return () => window.removeEventListener("keydown", onKey, true)
+  }, [activeProjectId, newSession, hotkeys])
 
   const closeSession = useCallback((projectId: string, sessionId: string) => {
     const removed = removeSession(sessionsRef.current, projectId, sessionId)
