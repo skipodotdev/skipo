@@ -8,7 +8,9 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -43,6 +45,18 @@ func (s *Service) Open() (*Project, error) {
 		return nil, nil // cancelled
 	}
 	return &Project{ID: projectID(path), Name: filepath.Base(path), Path: path}, nil
+}
+
+// Branch returns the current git branch of the project directory, or "" when the
+// path is not a git work tree or HEAD is detached (no branch to name). It reads
+// the current state on call, so a checkout made after opening is not reflected
+// until the branch is resolved again.
+func (s *Service) Branch(path string) string {
+	out, err := exec.Command("git", "-C", path, "symbolic-ref", "--short", "HEAD").Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // projectID derives a stable, URL- and event-safe ID from the absolute path, so

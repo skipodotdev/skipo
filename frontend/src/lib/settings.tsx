@@ -126,9 +126,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener("change", apply)
   }, [theme])
 
-  // Scale the whole app. `zoom` reflows layout (unlike transform: scale).
-  // ponytail: this also scales the terminal canvas (slightly soft off 100%);
-  // zoom a chrome-only wrapper excluding TerminalHost if that becomes an issue.
+  // Scale the whole app. `zoom` reflows layout (unlike transform: scale). It
+  // also scales the terminal canvas (slightly soft off 100%); a chrome-only
+  // wrapper excluding TerminalHost would avoid that if it becomes an issue.
   useEffect(() => {
     document.documentElement.style.zoom = String(zoom)
   }, [zoom])

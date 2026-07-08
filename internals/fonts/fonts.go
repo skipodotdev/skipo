@@ -19,10 +19,9 @@ func New() *Service {
 	return &Service{}
 }
 
-// List returns the sorted, de-duplicated set of installed font families.
-//
-// ponytail: fontconfig (Linux/macOS) via fc-list. Add a Windows enumeration
-// path (registry / DirectWrite) when the app targets Windows.
+// List returns the sorted, de-duplicated set of installed font families. It
+// enumerates via fontconfig (fc-list), covering Linux/macOS; Windows would need
+// a registry / DirectWrite path.
 func (s *Service) List() ([]string, error) {
 	out, err := exec.Command("fc-list", ":", "family").Output()
 	if err != nil {
