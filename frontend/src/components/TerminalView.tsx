@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react"
 import { init, Terminal as Ghostty, FitAddon } from "ghostty-web"
 import { Events } from "@wailsio/runtime"
 import { Service } from "../../bindings/github.com/skipodotdev/skipo/internals/terminal"
+import { patchBlockGlyphs } from "@/lib/block-glyphs"
 import { useSettings } from "@/lib/settings"
 import type { ResolvedTheme } from "@/lib/settings"
 
@@ -136,6 +137,9 @@ export function TerminalView({ sessionId, projectId, cwd, visible }: TerminalVie
       const fit = new FitAddon()
       term.loadAddon(fit)
       term.open(container)
+      if (term.renderer) {
+        patchBlockGlyphs(term.renderer)
+      }
       fit.fit()
       termRef.current = term
       fitRef.current = fit
