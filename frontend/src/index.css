@@ -132,6 +132,12 @@
   * {
     @apply border-border outline-ring/50;
     }
+  /* ghostty-web marks its container contenteditable for input capture; hide the
+     native caret WebKitGTK paints beside the canvas (full-height blinking bar).
+     The terminal draws its own cursor. */
+  [data-terminal] {
+    caret-color: transparent;
+    }
   body {
     @apply bg-background text-foreground;
     }
