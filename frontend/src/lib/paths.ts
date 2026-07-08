@@ -1,13 +1,13 @@
-// shortenPath compresses a filesystem path to its last two segments, prefixing
-// an ellipsis when earlier segments were dropped:
-// "/home/meopedevts/try/skipo" -> ".../try/skipo". Paths with two or fewer
-// segments are returned unchanged. Both POSIX and Windows separators are split.
-const TAIL_SEGMENTS = 2
+// displayPath collapses a user's home directory prefix to "~", the way most
+// shells and terminals render paths: "/home/me/try/skipo" -> "~/try/skipo".
+// Paths outside a home directory are returned unchanged.
+//
+// ponytail: heuristic on the conventional home roots (/home, /Users,
+// C:\Users) rather than the real $HOME, so a personal single-user harness
+// needs no backend round-trip. Upgrade path: pass the actual home dir from Go
+// (os.UserHomeDir) if this ever runs where home lives elsewhere.
+const HOME_ROOTS = /^(?:\/home\/[^/]+|\/Users\/[^/]+|[A-Za-z]:\\Users\\[^\\]+)/
 
-export function shortenPath(path: string): string {
-  const parts = path.split(/[/\\]/).filter(Boolean)
-  if (parts.length <= TAIL_SEGMENTS) {
-    return path
-  }
-  return `.../${parts.slice(-TAIL_SEGMENTS).join("/")}`
+export function displayPath(path: string): string {
+  return path.replace(HOME_ROOTS, "~")
 }

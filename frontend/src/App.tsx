@@ -1,11 +1,11 @@
 import { HashRouter, Outlet, Route, Routes } from "react-router-dom"
 import { SettingsProvider } from "@/lib/settings"
 import { ProjectsProvider } from "@/lib/projects"
-import { ProjectTabs } from "@/components/ProjectTabs"
-import { SessionSidebar } from "@/components/SessionSidebar"
+import { ProjectTabs } from "@/components/tabs/ProjectTabs"
+import { SessionSidebar } from "@/components/sidebar/SessionSidebar"
 import { TerminalHost } from "@/components/TerminalHost"
 import { Home } from "@/components/Home"
-import { Settings } from "@/components/Settings"
+import { Settings } from "@/components/settings/Settings"
 
 // Layout is persistent across navigation: the project tabs, session sidebar and
 // TerminalHost stay mounted while the Outlet swaps screens (Home, Settings) on

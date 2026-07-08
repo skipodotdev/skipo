@@ -1,13 +1,11 @@
-import { useEffect, useRef, useState } from "react"
+import { useRef, useState } from "react"
 import type { PointerEvent as ReactPointerEvent } from "react"
 import { useMatch } from "react-router-dom"
-import { GitBranch, Plus, X } from "lucide-react"
-import { Service as ProjectService } from "../../bindings/github.com/skipodotdev/skipo/internals/project"
-import { cn } from "@/lib/utils"
-import { shortenPath } from "@/lib/paths"
+import { Plus } from "lucide-react"
 import { useProjects } from "@/lib/projects"
-import { activeSessionId, sessionsOf, type Session } from "@/lib/sessions"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { activeSessionId, sessionsOf } from "@/lib/sessions"
+import { SessionCard } from "./SessionCard"
+import { useProjectBranch } from "./useProjectBranch"
 
 // Sidebar width bounds in rem, matching the Tailwind v4 spacing scale. State and
 // storage stay in rem; the pointer drag delta arrives in CSS pixels and is
@@ -26,91 +24,6 @@ function readWidth(): number {
   return Number.isFinite(stored) && stored > 0
     ? clampWidth(stored)
     : DEFAULT_WIDTH_REM
-}
-
-// SessionCard is one session entry: a card showing the session label, the
-// project's working directory, and the current git branch (when the project is
-// a repo), with a close button on hover.
-function SessionCard({
-  session,
-  path,
-  branch,
-  active,
-  onSelect,
-  onClose,
-}: {
-  session: Session
-  path: string
-  branch: string
-  active: boolean
-  onSelect: () => void
-  onClose: () => void
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger
-        render={
-          <button
-            type="button"
-            onClick={onSelect}
-            className={cn(
-              "group relative flex w-full flex-col items-start gap-0.5 rounded-lg border border-border/60 bg-card px-3 py-2 text-left transition-colors hover:bg-accent/60",
-              active &&
-                "border-accent-foreground/20 bg-accent text-accent-foreground",
-            )}
-          />
-        }
-      >
-        <span className="w-full truncate pr-5 text-sm font-medium text-foreground">
-          {session.label}
-        </span>
-        <span className="max-w-full truncate font-mono text-xs text-muted-foreground">
-          {shortenPath(path)}
-        </span>
-        {branch && (
-          <span className="flex max-w-full items-center gap-1 text-xs text-muted-foreground">
-            <GitBranch className="size-3 shrink-0" />
-            <span className="truncate">{branch}</span>
-          </span>
-        )}
-        <span
-          role="button"
-          aria-label={`Close ${session.label}`}
-          onClick={(event) => {
-            event.stopPropagation()
-            onClose()
-          }}
-          className="absolute right-2 top-2 flex size-4 items-center justify-center rounded opacity-0 transition-opacity hover:bg-foreground/15 group-hover:opacity-100"
-        >
-          <X className="size-3" />
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{path}</TooltipContent>
-    </Tooltip>
-  )
-}
-
-// useProjectBranch resolves the current git branch of a directory through the
-// backend. It re-resolves whenever the path changes; a checkout made while the
-// project stays open is not reflected until then (no live watching yet).
-function useProjectBranch(path: string): string {
-  const [branch, setBranch] = useState("")
-  useEffect(() => {
-    if (!path) {
-      setBranch("")
-      return
-    }
-    let alive = true
-    void ProjectService.Branch(path).then((value) => {
-      if (alive) {
-        setBranch(value)
-      }
-    })
-    return () => {
-      alive = false
-    }
-  }, [path])
-  return branch
 }
 
 // SessionSidebar lists the active project's sessions and can be drag-resized

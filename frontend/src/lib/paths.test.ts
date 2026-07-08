@@ -1,18 +1,22 @@
 import { describe, expect, it } from "vitest"
-import { shortenPath } from "./paths"
+import { displayPath } from "./paths"
 
-describe("shortenPath", () => {
-  it("keeps the last two segments and prefixes an ellipsis", () => {
-    expect(shortenPath("/home/meopedevts/try/skipo")).toBe(".../try/skipo")
+describe("displayPath", () => {
+  it("collapses a POSIX home prefix to ~", () => {
+    expect(displayPath("/home/meopedevts/try/skipo")).toBe("~/try/skipo")
   })
 
-  it("returns paths with two or fewer segments unchanged", () => {
-    expect(shortenPath("/skipo")).toBe("/skipo")
-    expect(shortenPath("try/skipo")).toBe("try/skipo")
-    expect(shortenPath("")).toBe("")
+  it("collapses a macOS home prefix to ~", () => {
+    expect(displayPath("/Users/me/try/skipo")).toBe("~/try/skipo")
   })
 
-  it("splits Windows separators", () => {
-    expect(shortenPath("C:\\Users\\me\\try\\skipo")).toBe(".../try/skipo")
+  it("collapses a Windows user profile prefix to ~", () => {
+    expect(displayPath("C:\\Users\\me\\try\\skipo")).toBe("~\\try\\skipo")
+  })
+
+  it("leaves paths outside a home directory unchanged", () => {
+    expect(displayPath("/opt/app/data")).toBe("/opt/app/data")
+    expect(displayPath("/home")).toBe("/home")
+    expect(displayPath("")).toBe("")
   })
 })

@@ -1,0 +1,98 @@
+import {useEffect, useRef, useState} from "react"
+import {GitBranch, X} from "lucide-react"
+import {cn} from "@/lib/utils"
+import {displayPath} from "@/lib/paths"
+import {type Session} from "@/lib/sessions"
+import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip"
+
+interface SessionCardProps {
+  session: Session
+  path: string
+  branch: string
+  active: boolean
+  onSelect: () => void
+  onClose: () => void
+}
+
+// SessionCard is one session entry: a card showing the session label, the
+// project's working directory, and the current git branch (when the project is
+// a repo), with a close button on hover.
+export function SessionCard({
+                              session,
+                              path,
+                              branch,
+                              active,
+                              onSelect,
+                              onClose,
+                            }: SessionCardProps) {
+  const pathRef = useRef<HTMLSpanElement>(null)
+  const [pathOverflow, setPathOverflow] = useState(false)
+
+  // Fade the left (path start) only when the tail can't fit, so a path that
+  // fits keeps its "~" crisp — matching how terminals hint at hidden prefix.
+  useEffect(() => {
+    const el = pathRef.current
+    if (!el) return
+    const measure = () => setPathOverflow(el.scrollWidth > el.clientWidth)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [path])
+
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type="button"
+            onClick={onSelect}
+            className={cn(
+              "group relative flex w-full flex-col items-start gap-0.5 rounded-lg border border-border/60 bg-card px-3 py-3 text-left transition-colors hover:bg-accent/60",
+              active &&
+              "border-accent-foreground/20 bg-accent text-accent-foreground",
+            )}
+          />
+        }
+      >
+        <div className="flex w-full min-w-0 flex-col space-y-2">
+          <span className="w-full truncate pr-5 text-sm font-medium text-foreground">
+            {session.label}
+          </span>
+          {/* rtl anchors the tail (project folder) to the right so overflow is
+              clipped on the left; the leading LRM keeps "~/" in logical order
+              instead of letting bidi push it to the end. */}
+          <span
+            ref={pathRef}
+            dir="rtl"
+            className={cn(
+              "block max-w-full overflow-hidden whitespace-nowrap text-left font-mono text-xs text-muted-foreground",
+              pathOverflow &&
+              "[mask-image:linear-gradient(to_right,transparent,black_1.25rem)]",
+            )}
+          >
+            {"\u200e" + displayPath(path)}
+          </span>
+          {branch && (
+            <span className="flex max-w-full items-center gap-1 text-xs text-muted-foreground">
+              <GitBranch className="size-3 shrink-0"/>
+              <span className="truncate">{branch}</span>
+            </span>
+          )}
+        </div>
+        <span
+          role="button"
+          aria-label={`Close ${session.label}`}
+          onClick={(event) => {
+            event.stopPropagation()
+            onClose()
+          }}
+          className="absolute right-2 top-2 flex size-4 items-center justify-center rounded opacity-0 transition-opacity hover:bg-foreground/15 group-hover:opacity-100"
+        >
+          <X className="size-3"/>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{path}</TooltipContent>
+    </Tooltip>
+  )
+}

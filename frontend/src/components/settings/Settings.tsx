@@ -1,9 +1,9 @@
 import { useState } from "react"
 import type { ComponentType } from "react"
 import { Search } from "lucide-react"
-import { TerminalSettings } from "@/components/settings/TerminalSettings"
-import { AppearanceSettings } from "@/components/settings/AppearanceSettings"
-import { ClaudeCodeSettings } from "@/components/settings/ClaudeCodeSettings"
+import { TerminalSettings } from "./TerminalSettings"
+import { AppearanceSettings } from "./AppearanceSettings"
+import { ClaudeCodeSettings } from "./ClaudeCodeSettings"
 import { cn } from "@/lib/utils"
 
 // SECTIONS is the settings registry: adding a category is one new file under
