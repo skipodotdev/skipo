@@ -97,6 +97,29 @@ export function setActiveSession(
   return { ...state, [projectId]: { ...current, activeId: sessionId } }
 }
 
+// renameSession sets a session's label. Unknown project or session ids are
+// ignored, returning the input state unchanged.
+export function renameSession(
+  state: SessionState,
+  projectId: string,
+  sessionId: string,
+  label: string,
+): SessionState {
+  const current = state[projectId]
+  if (!current || !current.sessions.some((s) => s.id === sessionId)) {
+    return state
+  }
+  return {
+    ...state,
+    [projectId]: {
+      ...current,
+      sessions: current.sessions.map((s) =>
+        s.id === sessionId ? { ...s, label } : s,
+      ),
+    },
+  }
+}
+
 // removeProject drops a project and all its sessions.
 export function removeProject(
   state: SessionState,

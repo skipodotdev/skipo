@@ -3,6 +3,7 @@ import type { ComponentType } from "react"
 import { Search } from "lucide-react"
 import { TerminalSettings } from "@/components/settings/TerminalSettings"
 import { AppearanceSettings } from "@/components/settings/AppearanceSettings"
+import { ClaudeCodeSettings } from "@/components/settings/ClaudeCodeSettings"
 import { cn } from "@/lib/utils"
 
 // SECTIONS is the settings registry: adding a category is one new file under
@@ -11,6 +12,7 @@ import { cn } from "@/lib/utils"
 const SECTIONS = [
   { id: "appearance", label: "Appearance", Component: AppearanceSettings },
   { id: "terminal", label: "Terminal", Component: TerminalSettings },
+  { id: "claude-code", label: "Claude Code", Component: ClaudeCodeSettings },
 ] as const satisfies ReadonlyArray<{
   id: string
   label: string

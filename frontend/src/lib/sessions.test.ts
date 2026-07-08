@@ -5,6 +5,7 @@ import {
   closeSession,
   createProjectSessions,
   removeProject,
+  renameSession,
   sessionsOf,
   setActiveSession,
   type SessionState,
@@ -99,6 +100,28 @@ describe("setActiveSession", () => {
   it("ignores unknown ids", () => {
     const state = buildState(2)
     expect(setActiveSession(state, P, "ghost")).toBe(state)
+  })
+})
+
+describe("renameSession", () => {
+  it("relabels the target session and leaves siblings untouched", () => {
+    const state = renameSession(buildState(2), P, "s1", "build")
+    expect(sessionsOf(state, P).map((s) => s.label)).toEqual([
+      "build",
+      "Session 2",
+    ])
+  })
+
+  it("does not mutate the input state", () => {
+    const before = buildState(1)
+    renameSession(before, P, "s1", "build")
+    expect(sessionsOf(before, P)[0].label).toBe("Session 1")
+  })
+
+  it("ignores unknown project or session ids", () => {
+    const state = buildState(2)
+    expect(renameSession(state, "nope", "s1", "x")).toBe(state)
+    expect(renameSession(state, P, "ghost", "x")).toBe(state)
   })
 })
 

@@ -1,14 +1,18 @@
-import { createContext, useCallback, useContext, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { useNavigate } from "react-router-dom"
 import {
   Project,
   Service as ProjectService,
 } from "../../bindings/github.com/skipodotdev/skipo/internals/project"
+import { Service as Store } from "../../bindings/github.com/skipodotdev/skipo/internals/store"
+import type { Project as StoreProject } from "../../bindings/github.com/skipodotdev/skipo/internals/store/models"
 import {
+  activeSessionId,
   addSession,
   closeSession as removeSession,
   removeProject,
+  renameSession as relabelSession,
   sessionsOf,
   setActiveSession,
   type SessionState,
@@ -20,67 +24,149 @@ interface ProjectsValue {
   sessions: SessionState
   /** Show the OS directory picker, add the chosen project and navigate to it. */
   openProject: () => Promise<void>
-  /** Remove a project (unmounts its terminals, which closes their PTYs). */
+  /** Close a project's tab (kept in the store so it can be reopened later). */
   closeProject: (id: string) => void
   /** Open a new terminal session in a project and focus it. */
   newSession: (projectId: string) => void
-  /** Close a session; closing the last one recreates an empty one. */
+  /** Permanently delete a session; deleting the last one recreates an empty one. */
   closeSession: (projectId: string, sessionId: string) => void
   /** Focus an existing session within a project. */
   activateSession: (projectId: string, sessionId: string) => void
+  /** Rename a session's display label. */
+  renameSession: (projectId: string, sessionId: string, label: string) => void
 }
 
 const ProjectsContext = createContext<ProjectsValue | null>(null)
 
 const newSessionId = (): string => crypto.randomUUID()
 
-// ponytail: open projects and their sessions are kept in memory only. Persist to
-// a config file (and restore on launch) when they should survive restarts.
+// The first session of any project is always "Session 1"; the counter then
+// points at 2 for the next one.
+const FIRST_LABEL = "Session 1"
+const FIRST_NEXT_SEQ = 2
+
+const toProject = (p: StoreProject): Project => ({
+  id: p.id,
+  name: p.name,
+  path: p.path,
+})
+
+// buildSessionState rebuilds the in-memory session map from the persisted
+// projects returned by the store.
+function buildSessionState(loaded: StoreProject[]): SessionState {
+  const state: SessionState = {}
+  for (const p of loaded) {
+    const sessions = (p.sessions ?? []).map((s) => ({ id: s.id, label: s.label }))
+    state[p.id] = {
+      sessions,
+      activeId: p.activeSessionId || sessions[0]?.id || "",
+      nextSeq: p.nextSeq,
+    }
+  }
+  return state
+}
+
+// ProjectsProvider is the write-through layer over the SQLite store: it mirrors
+// every mutation to the store and hydrates from it on launch so open projects
+// and their sessions survive restarts. In-project mutations read the latest
+// rendered session state through sessionsRef, which is safe because none of them
+// awaits a state-changing call before reading it.
 export function ProjectsProvider({ children }: { children: ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([])
   const [sessions, setSessions] = useState<SessionState>({})
+  const sessionsRef = useRef(sessions)
+  sessionsRef.current = sessions
   const navigate = useNavigate()
+
+  const applyLoaded = useCallback((loaded: StoreProject[]) => {
+    setProjects(loaded.map(toProject))
+    setSessions(buildSessionState(loaded))
+  }, [])
+
+  // Restore the workspace once on launch.
+  useEffect(() => {
+    void Store.LoadState().then((loaded) => applyLoaded(loaded ?? []))
+  }, [applyLoaded])
 
   const openProject = useCallback(async () => {
     const picked = await ProjectService.Open()
     if (!picked) {
       return
     }
-    setProjects((prev) =>
-      prev.some((project) => project.id === picked.id) ? prev : [...prev, picked],
-    )
-    setSessions((prev) =>
-      prev[picked.id] ? prev : addSession(prev, picked.id, newSessionId()),
-    )
+    await Store.AddProject(picked.id, picked.name, picked.path)
+
+    // Reload from the store to pick up any sessions a reopened project kept, and
+    // seed a first session when it is brand new (or was left empty).
+    let loaded = (await Store.LoadState()) ?? []
+    const mine = loaded.find((p) => p.id === picked.id)
+    if (!mine || (mine.sessions ?? []).length === 0) {
+      await Store.AddSession(picked.id, newSessionId(), FIRST_LABEL, FIRST_NEXT_SEQ)
+      loaded = (await Store.LoadState()) ?? []
+    }
+    applyLoaded(loaded)
     navigate(`/projects/${picked.id}`)
-  }, [navigate])
+  }, [applyLoaded, navigate])
 
   const closeProject = useCallback(
     (id: string) => {
       setProjects((prev) => prev.filter((project) => project.id !== id))
       setSessions((prev) => removeProject(prev, id))
+      void Store.CloseProject(id)
       navigate("/")
     },
     [navigate],
   )
 
   const newSession = useCallback((projectId: string) => {
-    setSessions((prev) => addSession(prev, projectId, newSessionId()))
+    const sessionId = newSessionId()
+    const next = addSession(sessionsRef.current, projectId, sessionId)
+    const project = next[projectId]
+    const created = project.sessions[project.sessions.length - 1]
+    setSessions(next)
+    void Store.AddSession(projectId, sessionId, created.label, project.nextSeq)
   }, [])
 
   const closeSession = useCallback((projectId: string, sessionId: string) => {
-    setSessions((prev) => {
-      const next = removeSession(prev, projectId, sessionId)
-      // A project always keeps at least one session; recreate when emptied.
-      return sessionsOf(next, projectId).length === 0
-        ? addSession(next, projectId, newSessionId())
-        : next
-    })
+    const removed = removeSession(sessionsRef.current, projectId, sessionId)
+    if (removed === sessionsRef.current) {
+      return
+    }
+    // A project always keeps at least one session; recreate when emptied.
+    if (sessionsOf(removed, projectId).length === 0) {
+      const recreatedId = newSessionId()
+      const next = addSession(removed, projectId, recreatedId)
+      const project = next[projectId]
+      const created = project.sessions[project.sessions.length - 1]
+      setSessions(next)
+      void Store.DeleteSession(projectId, sessionId, "").then(() =>
+        Store.AddSession(projectId, recreatedId, created.label, project.nextSeq),
+      )
+      return
+    }
+    setSessions(removed)
+    void Store.DeleteSession(projectId, sessionId, activeSessionId(removed, projectId))
   }, [])
 
   const activateSession = useCallback((projectId: string, sessionId: string) => {
-    setSessions((prev) => setActiveSession(prev, projectId, sessionId))
+    const next = setActiveSession(sessionsRef.current, projectId, sessionId)
+    if (next === sessionsRef.current) {
+      return
+    }
+    setSessions(next)
+    void Store.SetActiveSession(projectId, sessionId)
   }, [])
+
+  const renameSession = useCallback(
+    (projectId: string, sessionId: string, label: string) => {
+      const next = relabelSession(sessionsRef.current, projectId, sessionId, label)
+      if (next === sessionsRef.current) {
+        return
+      }
+      setSessions(next)
+      void Store.RenameSession(sessionId, label)
+    },
+    [],
+  )
 
   return (
     <ProjectsContext.Provider
@@ -92,6 +178,7 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
         newSession,
         closeSession,
         activateSession,
+        renameSession,
       }}
     >
       {children}

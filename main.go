@@ -6,6 +6,7 @@ import (
 
 	"github.com/skipodotdev/skipo/internals/fonts"
 	"github.com/skipodotdev/skipo/internals/project"
+	"github.com/skipodotdev/skipo/internals/store"
 	"github.com/skipodotdev/skipo/internals/terminal"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -22,13 +23,20 @@ var assets embed.FS
 // main is the application's entry point. It creates the application, opens the
 // main window and blocks until the app exits.
 func main() {
+	db, err := store.New()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
 	app := application.New(application.Options{
 		Name:        "skipo",
 		Description: "Personal harness",
 		Services: []application.Service{
-			application.NewService(terminal.New()),
+			application.NewService(terminal.New(db)),
 			application.NewService(fonts.New()),
 			application.NewService(project.New()),
+			application.NewService(db),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),

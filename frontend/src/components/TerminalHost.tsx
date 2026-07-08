@@ -30,6 +30,7 @@ export function TerminalHost() {
             >
               <TerminalView
                 sessionId={session.id}
+                projectId={project.id}
                 cwd={project.path}
                 visible={visible}
               />

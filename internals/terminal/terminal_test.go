@@ -2,7 +2,6 @@ package terminal
 
 import (
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 	"testing"
@@ -11,34 +10,43 @@ import (
 	"github.com/creack/pty"
 )
 
-func TestDefaultShell(t *testing.T) {
-	original, had := os.LookupEnv("SHELL")
-	t.Cleanup(func() {
-		if had {
-			os.Setenv("SHELL", original)
-		} else {
-			os.Unsetenv("SHELL")
-		}
-	})
+// stubBins is a BinResolver returning a fixed path, for tests that never spawn.
+type stubBins struct{ bin string }
 
-	os.Setenv("SHELL", "/custom/shell")
-	if got := defaultShell(); got != "/custom/shell" {
-		t.Errorf("defaultShell() with $SHELL set = %q, want %q", got, "/custom/shell")
+func (s stubBins) ClaudeBin(string) string { return s.bin }
+
+// TestOperationsOnUnknownSessionAreNoops proves Write/Resize/Close on a session
+// that was never started return nil instead of panicking on a missing PTY.
+func TestOperationsOnUnknownSessionAreNoops(t *testing.T) {
+	svc := New(stubBins{})
+	if err := svc.Write("ghost", "hi"); err != nil {
+		t.Errorf("Write unknown = %v, want nil", err)
 	}
-
-	os.Unsetenv("SHELL")
-	if got := defaultShell(); got != "/bin/sh" {
-		t.Errorf("defaultShell() with $SHELL unset = %q, want %q", got, "/bin/sh")
+	if err := svc.Resize("ghost", 80, 24); err != nil {
+		t.Errorf("Resize unknown = %v, want nil", err)
+	}
+	if err := svc.Close("ghost"); err != nil {
+		t.Errorf("Close unknown = %v, want nil", err)
 	}
 }
 
-// TestPTYEcho proves the core assumption of the service: the detected shell
-// spawns under a PTY and its output is readable. If creack/pty or the shell
-// setup breaks, this fails.
+// TestResolveBin proves an empty custom path falls back to the default binary
+// while a configured path is passed through unchanged.
+func TestResolveBin(t *testing.T) {
+	if got := resolveBin(""); got != defaultBin {
+		t.Errorf("resolveBin(%q) = %q, want %q", "", got, defaultBin)
+	}
+	if got := resolveBin("/opt/claude.sh"); got != "/opt/claude.sh" {
+		t.Errorf("resolveBin custom = %q, want %q", got, "/opt/claude.sh")
+	}
+}
+
+// TestPTYEcho proves the core assumption of the service: a process spawns under
+// a PTY and its output is readable. If creack/pty breaks, this fails.
 func TestPTYEcho(t *testing.T) {
 	const marker = "skipo-pty-test"
 
-	cmd := exec.Command(defaultShell(), "-c", "echo "+marker)
+	cmd := exec.Command("/bin/sh", "-c", "echo "+marker)
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
 	if err != nil {
 		t.Fatalf("pty.StartWithSize: %v", err)

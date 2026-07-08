@@ -33,31 +33,44 @@ type session struct {
 	cmd  *exec.Cmd
 }
 
+// BinResolver supplies the Claude Code binary path to spawn for a project. An
+// empty return spawns the default binary. The store implements it, reading the
+// per-project override or the global setting.
+type BinResolver interface {
+	ClaudeBin(projectID string) string
+}
+
 // Service manages PTY-backed shell sessions keyed by session ID.
 type Service struct {
 	mu       sync.Mutex
 	sessions map[string]*session
+	bins     BinResolver
 }
 
-// New returns a ready-to-use terminal service.
-func New() *Service {
-	return &Service{sessions: make(map[string]*session)}
+// New returns a ready-to-use terminal service that resolves the binary to spawn
+// through bins.
+func New(bins BinResolver) *Service {
+	return &Service{sessions: make(map[string]*session), bins: bins}
 }
 
-// defaultShell returns the user's login shell from $SHELL, falling back to a
-// sane default when it is unset.
-func defaultShell() string {
-	if shell := os.Getenv("SHELL"); shell != "" {
-		return shell
+// defaultBin is the Claude Code binary spawned when the user has not configured
+// a custom path.
+const defaultBin = "claude"
+
+// resolveBin returns the configured binary, or the default when it is empty.
+func resolveBin(bin string) string {
+	if bin == "" {
+		return defaultBin
 	}
-	return "/bin/sh"
+	return bin
 }
 
-// Start spawns the user's shell for session id, attached to a new PTY sized to
-// cols x rows and rooted at cwd, then streams its output to the frontend. An
-// empty cwd defaults to the user's home directory. Starting a session that is
-// already running is a no-op.
-func (s *Service) Start(id, cwd string, cols, rows int) error {
+// Start spawns the Claude Code binary for session id under project projectID,
+// attached to a new PTY sized to cols x rows and rooted at cwd, then streams its
+// output to the frontend. The binary is resolved from the project's settings
+// (falling back to "claude" via $PATH). An empty cwd defaults to the user's home
+// directory. Starting a session that is already running is a no-op.
+func (s *Service) Start(id, projectID, cwd string, cols, rows int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -73,7 +86,7 @@ func (s *Service) Start(id, cwd string, cols, rows int) error {
 		cwd = home
 	}
 
-	cmd := exec.Command(defaultShell())
+	cmd := exec.Command(resolveBin(s.bins.ClaudeBin(projectID)))
 	cmd.Dir = cwd
 	cmd.Env = append(os.Environ(), "TERM=xterm-256color")
 
