@@ -4,6 +4,7 @@ import { ProjectsProvider } from "@/lib/projects"
 import { ProjectTabs } from "@/components/tabs/ProjectTabs"
 import { SessionSidebar } from "@/components/sidebar/SessionSidebar"
 import { TerminalHost } from "@/components/TerminalHost"
+import { FooterBar } from "@/components/FooterBar"
 import { Home } from "@/components/Home"
 import { Settings } from "@/components/settings/Settings"
 
@@ -16,9 +17,12 @@ function Layout() {
       <ProjectTabs />
       <div className="flex flex-1 overflow-hidden">
         <SessionSidebar />
-        <main className="relative flex-1 overflow-hidden">
-          <TerminalHost />
-          <Outlet />
+        <main className="flex flex-1 flex-col overflow-hidden">
+          <div className="relative flex-1 overflow-hidden">
+            <TerminalHost />
+            <Outlet />
+          </div>
+          <FooterBar />
         </main>
       </div>
     </div>

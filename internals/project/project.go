@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -57,6 +58,63 @@ func (s *Service) Branch(path string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// PickFile shows the native file picker and returns the chosen file path, or ""
+// if the user cancels the dialog.
+func (s *Service) PickFile() (string, error) {
+	path, err := application.Get().Dialog.OpenFile().
+		CanChooseFiles(true).
+		CanChooseDirectories(false).
+		SetTitle("Attach File").
+		PromptForSingleSelection()
+	if err != nil {
+		return "", fmt.Errorf("open dialog failed: %w", err)
+	}
+	return path, nil
+}
+
+// DiffStats summarizes the uncommitted changes of a work tree.
+type DiffStats struct {
+	Files   int `json:"files"`
+	Added   int `json:"added"`
+	Deleted int `json:"deleted"`
+}
+
+// Diff returns the dirty-file count (modified + untracked) and the added/deleted
+// line totals against HEAD. A non-repository path yields the zero value, matching
+// Branch's contract.
+func (s *Service) Diff(path string) DiffStats {
+	var stats DiffStats
+	if out, err := exec.Command("git", "-C", path, "status", "--porcelain").Output(); err == nil {
+		stats.Files = countLines(out)
+	}
+	out, err := exec.Command("git", "-C", path, "diff", "--numstat", "HEAD").Output()
+	if err != nil {
+		return stats
+	}
+	for line := range strings.Lines(string(out)) {
+		cols := strings.Fields(line)
+		if len(cols) < 3 {
+			continue
+		}
+		// Binary files report "-" for both counts; Atoi fails and adds zero.
+		added, _ := strconv.Atoi(cols[0])
+		deleted, _ := strconv.Atoi(cols[1])
+		stats.Added += added
+		stats.Deleted += deleted
+	}
+	return stats
+}
+
+func countLines(out []byte) int {
+	n := 0
+	for line := range strings.Lines(string(out)) {
+		if strings.TrimSpace(line) != "" {
+			n++
+		}
+	}
+	return n
 }
 
 // projectID derives a stable, URL- and event-safe ID from the absolute path, so
