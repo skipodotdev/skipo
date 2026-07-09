@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react"
-import { Service as ProjectService } from "../../bindings/github.com/skipodotdev/skipo/internal/project"
+import {useEffect, useState} from "react"
+import {Service as ProjectService} from "../../bindings/github.com/skipodotdev/skipo/internal/project"
 
-const GIT_POLL_MS = 5_000
+const GIT_POLL_MS = 3_000
 
 export interface GitStatus {
   branch: string
@@ -32,7 +32,7 @@ export function useGitStatus(path: string): GitStatus | null {
           ProjectService.Diff(path),
         ])
         if (alive) {
-          setStatus({ branch, ...diff })
+          setStatus({branch, ...diff})
         }
       } catch {
         if (alive) {
