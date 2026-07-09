@@ -30,6 +30,59 @@ func TestOperationsOnUnknownSessionAreNoops(t *testing.T) {
 	}
 }
 
+// spawnSession starts /bin/cat under a PTY and returns a live session, keeping
+// the process off the Wails event singleton that stream() needs.
+func spawnSession(t *testing.T) *session {
+	t.Helper()
+	cmd := exec.Command("/bin/cat")
+	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})
+	if err != nil {
+		t.Fatalf("pty.StartWithSize: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = ptmx.Close()
+		if cmd.Process != nil {
+			_ = cmd.Process.Kill()
+		}
+	})
+	return &session{ptmx: ptmx, cmd: cmd}
+}
+
+// TestWriteResizeCloseOnLiveSession drives a real session end to end: input is
+// written, the window is resized and Close reaps the shell and drops it.
+func TestWriteResizeCloseOnLiveSession(t *testing.T) {
+	svc := New(stubBins{})
+	svc.sessions["s1"] = spawnSession(t)
+
+	if err := svc.Write("s1", "hello"); err != nil {
+		t.Errorf("Write = %v, want nil", err)
+	}
+	if err := svc.Resize("s1", 100, 40); err != nil {
+		t.Errorf("Resize = %v, want nil", err)
+	}
+	if err := svc.Close("s1"); err != nil {
+		t.Errorf("Close = %v, want nil", err)
+	}
+	if svc.ptmxOf("s1") != nil {
+		t.Error("session still present after Close")
+	}
+}
+
+// TestStartIsNoopWhenAlreadyRunning proves Start returns without spawning a
+// second shell for a session ID that is already tracked.
+func TestStartIsNoopWhenAlreadyRunning(t *testing.T) {
+	svc := New(stubBins{})
+	sess := spawnSession(t)
+	svc.sessions["s1"] = sess
+
+	if err := svc.Start("s1", "p1", "", 80, 24); err != nil {
+		t.Errorf("Start(running) = %v, want nil", err)
+	}
+	if svc.sessions["s1"] != sess {
+		t.Error("Start replaced the running session")
+	}
+}
+
 // TestResolveBin proves an empty custom path falls back to the default binary
 // while a configured path is passed through unchanged.
 func TestResolveBin(t *testing.T) {

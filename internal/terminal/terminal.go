@@ -57,6 +57,9 @@ func New(bins BinResolver) *Service {
 // a custom path.
 const defaultBin = "claude"
 
+// readBufSize is the chunk size read from a session's PTY per iteration.
+const readBufSize = 32 * 1024
+
 // resolveBin returns the configured binary, or the default when it is empty.
 func resolveBin(bin string) string {
 	if bin == "" {
@@ -103,7 +106,7 @@ func (s *Service) Start(id, projectID, cwd string, cols, rows int) error {
 // stream copies PTY output to the frontend until the PTY is closed, then reaps
 // the process, drops the session and emits its exit event.
 func (s *Service) stream(id string, ptmx *os.File, cmd *exec.Cmd) {
-	buf := make([]byte, 32*1024)
+	buf := make([]byte, readBufSize)
 	for {
 		n, err := ptmx.Read(buf)
 		if n > 0 {

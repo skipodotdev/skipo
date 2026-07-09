@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 `
 
+// busyTimeoutMS is how long a write waits on SQLite's lock before failing.
+const busyTimeoutMS = 5000
+
 // Service owns the SQLite connection and exposes persistence to the frontend.
 type Service struct {
 	db *sql.DB
@@ -85,7 +88,7 @@ func open(path string) (*Service, error) {
 		return nil, fmt.Errorf("create data directory: %w", err)
 	}
 
-	dsn := "file:" + path + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)"
+	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(%d)", path, busyTimeoutMS)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open database: %w", err)

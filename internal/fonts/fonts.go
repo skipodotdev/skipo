@@ -27,9 +27,14 @@ func (s *Service) List() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("fc-list failed: %w", err)
 	}
+	return parseFamilies(string(out)), nil
+}
 
+// parseFamilies extracts the sorted, de-duplicated family names from fc-list's
+// output.
+func parseFamilies(out string) []string {
 	seen := make(map[string]struct{})
-	for _, line := range strings.Split(string(out), "\n") {
+	for _, line := range strings.Split(out, "\n") {
 		// A line may hold comma-separated localized aliases; the first is the
 		// canonical family name.
 		name := strings.TrimSpace(strings.SplitN(line, ",", 2)[0])
@@ -44,5 +49,5 @@ func (s *Service) List() ([]string, error) {
 		families = append(families, family)
 	}
 	sort.Strings(families)
-	return families, nil
+	return families
 }

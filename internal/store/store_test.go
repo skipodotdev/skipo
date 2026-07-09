@@ -130,6 +130,29 @@ func TestDatabasePath(t *testing.T) {
 	}
 }
 
+func TestNewCreatesDatabaseUnderConfigDir(t *testing.T) {
+	tmp := t.TempDir()
+	// Redirect the OS config dir to tmp: XDG_CONFIG_HOME wins on Linux, HOME on
+	// macOS. Either way New writes under the test's temp directory, not the real
+	// user config.
+	t.Setenv("XDG_CONFIG_HOME", tmp)
+	t.Setenv("HOME", tmp)
+
+	svc, err := New()
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	defer svc.Close()
+
+	want, err := databasePath()
+	if err != nil {
+		t.Fatalf("databasePath: %v", err)
+	}
+	if _, err := os.Stat(want); err != nil {
+		t.Errorf("database not created at %q: %v", want, err)
+	}
+}
+
 func TestOpenFailsWhenParentIsAFile(t *testing.T) {
 	file := filepath.Join(t.TempDir(), "not-a-dir")
 	if err := os.WriteFile(file, []byte("x"), 0o600); err != nil {

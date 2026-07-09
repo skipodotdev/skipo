@@ -47,7 +47,12 @@ func (s *Service) Open() (*Project, error) {
 	if path == "" {
 		return nil, nil // cancelled
 	}
-	return &Project{ID: projectID(path), Name: filepath.Base(path), Path: path}, nil
+	return newProject(path), nil
+}
+
+// newProject builds a project's stable identity from a chosen directory path.
+func newProject(path string) *Project {
+	return &Project{ID: projectID(path), Name: filepath.Base(path), Path: path}
 }
 
 // Branch returns the current git branch of the project directory, or "" when the
@@ -120,8 +125,8 @@ func (s *Service) Diff(path string) DiffStats {
 
 // countFileLines returns the line count of a text file, or 0 for binaries
 // (NUL byte in the first 8000 bytes, git's own heuristic) and unreadable files.
-// ponytail: reads the whole file with a 10MB cap — untracked source files are
-// small; stream in chunks if that assumption ever breaks.
+// It reads the whole file with a 10MB cap — untracked source files are small;
+// stream in chunks if that assumption ever breaks.
 func countFileLines(name string) int {
 	const maxSize = 10 << 20
 	if info, err := os.Stat(name); err != nil || !info.Mode().IsRegular() || info.Size() > maxSize {
@@ -151,9 +156,13 @@ func countLines(out []byte) int {
 	return n
 }
 
+// projectIDBytes is the number of SHA-256 bytes kept for a project ID (12 hex
+// chars) — enough to make collisions a non-issue for a handful of open projects.
+const projectIDBytes = 6
+
 // projectID derives a stable, URL- and event-safe ID from the absolute path, so
 // the same directory always maps to the same project.
 func projectID(path string) string {
 	sum := sha256.Sum256([]byte(path))
-	return hex.EncodeToString(sum[:6])
+	return hex.EncodeToString(sum[:projectIDBytes])
 }

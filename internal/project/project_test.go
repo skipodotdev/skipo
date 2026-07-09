@@ -7,6 +7,39 @@ import (
 	"testing"
 )
 
+// TestProjectID proves the ID is deterministic per path and differs across
+// paths.
+func TestProjectID(t *testing.T) {
+	a := projectID("/tmp/alpha")
+	again := projectID("/tmp/alpha")
+	b := projectID("/tmp/beta")
+
+	if a != again {
+		t.Errorf("projectID not deterministic: %q != %q", a, again)
+	}
+	if a == b {
+		t.Errorf("projectID collided for different paths: %q", a)
+	}
+	if len(a) != projectIDBytes*2 {
+		t.Errorf("len(projectID) = %d, want %d", len(a), projectIDBytes*2)
+	}
+}
+
+// TestNewProject proves the path→Project mapping the dialog feeds into: Name is
+// the base directory, Path is verbatim, ID matches projectID.
+func TestNewProject(t *testing.T) {
+	p := newProject("/tmp/some/alpha")
+	if p.Name != "alpha" {
+		t.Errorf("Name = %q, want alpha", p.Name)
+	}
+	if p.Path != "/tmp/some/alpha" {
+		t.Errorf("Path = %q, want /tmp/some/alpha", p.Path)
+	}
+	if p.ID != projectID("/tmp/some/alpha") {
+		t.Errorf("ID = %q, want %q", p.ID, projectID("/tmp/some/alpha"))
+	}
+}
+
 // TestBranch proves Branch reads the checked-out branch of a git work tree and
 // returns "" for a directory that is not a repository.
 func TestBranch(t *testing.T) {

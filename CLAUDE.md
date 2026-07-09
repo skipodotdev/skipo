@@ -28,7 +28,7 @@ Regras inegociáveis. Violação = trabalho não está concluído.
 
 1. **Idioma do código em inglês.** Todo código, identificadores, comentários, mensagens de commit e nomes de arquivo em inglês. Comunicação com o autor pode ser em pt-BR; o código, não.
 
-2. **Cobertura de testes ≥ 80%.** Backend (Go) e frontend (React/TS). Sem teste, a feature não está pronta. Rode a suíte antes de marcar qualquer task concluída; falhou, corrige antes.
+2. **Cobertura de testes ≥ 80%.** Backend (Go) e frontend (React/TS). Sem teste, a feature não está pronta. Rode a suíte antes de marcar qualquer task concluída; falhou, corrige antes. OS/framework boundaries (native dialogs, the Wails PTY + event singleton, the `main` bootstrap) are a documented exception: cover the pure logic, never mock the framework just to inflate the number.
 
 3. **Clean code.**
    - Funções pequenas e focadas (< 50 linhas), uma responsabilidade.
