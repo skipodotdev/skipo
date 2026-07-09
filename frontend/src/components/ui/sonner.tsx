@@ -3,7 +3,7 @@ import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { useSettings } from "@/lib/settings"
 
 /**
- * App toast host. Wraps sonner's Toaster, driving its theme from skipo's
+ * App toast host. Wraps sonner's Toaster, driving its theme from lich's
  * settings (the app toggles a `.dark` class rather than using next-themes) and
  * mapping colors to the popover tokens so toasts match tooltips and menus.
  */

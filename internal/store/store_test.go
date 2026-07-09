@@ -125,8 +125,8 @@ func TestDatabasePath(t *testing.T) {
 	if err != nil {
 		t.Fatalf("databasePath: %v", err)
 	}
-	if filepath.Base(path) != "skipo.db" || filepath.Base(filepath.Dir(path)) != "skipo" {
-		t.Errorf("path = %q, want .../skipo/skipo.db", path)
+	if filepath.Base(path) != "lich.db" || filepath.Base(filepath.Dir(path)) != "lich" {
+		t.Errorf("path = %q, want .../lich/lich.db", path)
 	}
 }
 
@@ -159,7 +159,7 @@ func TestOpenFailsWhenParentIsAFile(t *testing.T) {
 		t.Fatal(err)
 	}
 	// The db's parent directory cannot be created under an existing file.
-	if _, err := open(filepath.Join(file, "skipo.db")); err == nil {
+	if _, err := open(filepath.Join(file, "lich.db")); err == nil {
 		t.Error("open under a file parent = nil error, want error")
 	}
 }

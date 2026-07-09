@@ -1,4 +1,4 @@
-// Package store is skipo's persistence layer: a single SQLite database holding
+// Package store is lich's persistence layer: a single SQLite database holding
 // open projects, their terminal sessions and backend-read settings (currently
 // the Claude Code binary path, global or per-project). It never stores chat or
 // terminal content — only the metadata needed to restore the workspace after a
@@ -108,7 +108,7 @@ func databasePath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("resolve config directory: %w", err)
 	}
-	return filepath.Join(dir, "skipo", "skipo.db"), nil
+	return filepath.Join(dir, "lich", "lich.db"), nil
 }
 
 // Close releases the database connection.

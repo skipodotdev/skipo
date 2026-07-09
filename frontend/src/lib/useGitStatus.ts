@@ -1,5 +1,5 @@
 import {useEffect, useState} from "react"
-import {Service as ProjectService} from "../../bindings/github.com/skipodotdev/skipo/internal/project"
+import {Service as ProjectService} from "../../bindings/github.com/omartelo/lich/internal/project"
 
 const GIT_POLL_MS = 3_000
 

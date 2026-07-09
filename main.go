@@ -4,10 +4,10 @@ import (
 	"embed"
 	"log"
 
-	"github.com/skipodotdev/skipo/internal/fonts"
-	"github.com/skipodotdev/skipo/internal/project"
-	"github.com/skipodotdev/skipo/internal/store"
-	"github.com/skipodotdev/skipo/internal/terminal"
+	"github.com/omartelo/lich/internal/fonts"
+	"github.com/omartelo/lich/internal/project"
+	"github.com/omartelo/lich/internal/store"
+	"github.com/omartelo/lich/internal/terminal"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -30,7 +30,7 @@ func main() {
 	defer db.Close()
 
 	app := application.New(application.Options{
-		Name:        "skipo",
+		Name:        "lich",
 		Description: "Personal harness",
 		Services: []application.Service{
 			application.NewService(terminal.New(db)),
@@ -48,7 +48,7 @@ func main() {
 
 	// Window sized to the golden ratio (1000 / 618 ≈ 1.618).
 	app.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:  "skipo",
+		Title:  "lich",
 		Width:  1000,
 		Height: 618,
 		Mac: application.MacWindow{

@@ -1,7 +1,7 @@
 .task
 bin
 # Stray root binaries from `go build .` (use `task build` -> bin/)
-/skipo
+/lich
 /changeme
 # IDE
 .idea/
@@ -16,3 +16,8 @@ build/ios/xcode/overlay.json
 build/ios/xcode/gen/
 build/android/overlay.json
 build/android/gen/
+# Transient copies staged by the appimage task (binary + icon next to build/)
+/build/linux/appimage/lich
+/build/linux/appimage/*.png
+/build/ios/
+/build/android/

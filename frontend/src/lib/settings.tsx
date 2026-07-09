@@ -17,10 +17,10 @@ import {
   type Hotkeys,
 } from "./hotkeys"
 
-const FONT_STORAGE_KEY = "skipo.terminal.font"
-const THEME_STORAGE_KEY = "skipo.appearance.theme"
-const ZOOM_STORAGE_KEY = "skipo.appearance.zoom"
-const TERMINAL_THEME_STORAGE_KEY = "skipo.appearance.terminalTheme"
+const FONT_STORAGE_KEY = "lich.terminal.font"
+const THEME_STORAGE_KEY = "lich.appearance.theme"
+const ZOOM_STORAGE_KEY = "lich.appearance.zoom"
+const TERMINAL_THEME_STORAGE_KEY = "lich.appearance.terminalTheme"
 
 // DEFAULT_FONT is the bundled FiraCode Nerd Font Mono. It is not installed via
 // fontconfig, so it must be offered explicitly alongside the system fonts.

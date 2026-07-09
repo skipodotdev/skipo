@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=skipo
-Exec=skipo
-Icon=skipo
+Name=lich
+Exec=lich
+Icon=lich
 Categories=Development;
 Terminal=false
 Keywords=wails

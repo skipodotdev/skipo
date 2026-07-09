@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react"
 import { init, Terminal as Ghostty, FitAddon } from "ghostty-web"
 import { Events } from "@wailsio/runtime"
-import { Service } from "../../bindings/github.com/skipodotdev/skipo/internal/terminal"
+import { Service } from "../../bindings/github.com/omartelo/lich/internal/terminal"
 import { toast } from "sonner"
 import { copyToastMessage, COPY_TOAST_DURATION_MS } from "@/lib/copy-toast"
 import { patchBlockGlyphs } from "@/lib/block-glyphs"

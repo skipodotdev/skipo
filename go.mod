@@ -1,4 +1,4 @@
-module github.com/skipodotdev/skipo
+module github.com/omartelo/lich
 
 go 1.25.0
 

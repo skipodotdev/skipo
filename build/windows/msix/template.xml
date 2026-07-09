@@ -8,27 +8,27 @@
         AllowPromptForPassword="false">
     </Settings>
     <Installer
-        Path="skipo"
+        Path="lich"
         Arguments=""
-        InstallLocation="C:\Program Files\Skipo\My Product">
+        InstallLocation="C:\Program Files\Lich\My Product">
     </Installer>
     <PackageInformation
         PackageName="My Product"
         PackageDisplayName="My Product"
-        PublisherName="CN=Skipo"
-        PublisherDisplayName="Skipo"
+        PublisherName="CN=Lich"
+        PublisherDisplayName="Lich"
         Version="0.1.0.0"
-        PackageDescription="A skipo application">
+        PackageDescription="A lich application">
         <Capabilities>
             <Capability Name="runFullTrust" />
             
         </Capabilities>
         <Applications>
             <Application
-                Id="com.skipo.skipo"
-                Description="A skipo application"
+                Id="com.lich.lich"
+                Description="A lich application"
                 DisplayName="My Product"
-                ExecutableName="skipo"
+                ExecutableName="lich"
                 EntryPoint="Windows.FullTrustApplication">
                 
             </Application>
@@ -42,12 +42,12 @@
         <Properties>
             <Framework>false</Framework>
             <DisplayName>My Product</DisplayName>
-            <PublisherDisplayName>Skipo</PublisherDisplayName>
-            <Description>A skipo application</Description>
+            <PublisherDisplayName>Lich</PublisherDisplayName>
+            <Description>A lich application</Description>
             <Logo>Assets\AppIcon.png</Logo>
         </Properties>
     </PackageInformation>
-    <SaveLocation PackagePath="skipo.msix" />
+    <SaveLocation PackagePath="lich.msix" />
     <PackageIntegrity>
         <CertificatePath></CertificatePath>
     </PackageIntegrity>

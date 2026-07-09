@@ -14,7 +14,7 @@ const REM_PX = 16
 const MIN_WIDTH_REM = 12
 const MAX_WIDTH_REM = 30
 const DEFAULT_WIDTH_REM = 15
-const WIDTH_STORAGE_KEY = "skipo.sidebar.width"
+const WIDTH_STORAGE_KEY = "lich.sidebar.width"
 
 const clampWidth = (rem: number): number =>
   Math.min(MAX_WIDTH_REM, Math.max(MIN_WIDTH_REM, rem))

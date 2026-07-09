@@ -97,7 +97,7 @@ func TestResolveBin(t *testing.T) {
 // TestPTYEcho proves the core assumption of the service: a process spawns under
 // a PTY and its output is readable. If creack/pty breaks, this fails.
 func TestPTYEcho(t *testing.T) {
-	const marker = "skipo-pty-test"
+	const marker = "lich-pty-test"
 
 	cmd := exec.Command("/bin/sh", "-c", "echo "+marker)
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: 24, Cols: 80})

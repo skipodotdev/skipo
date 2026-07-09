@@ -39,7 +39,7 @@ export type KeyState = Pick<
 >
 
 const MODIFIER_KEYS = new Set(["Control", "Meta", "Shift", "Alt", "AltGraph"])
-const STORAGE_KEY = "skipo.hotkeys"
+const STORAGE_KEY = "lich.hotkeys"
 
 // normalizeKey folds "=" into "+" (same physical key) and lowercases single
 // characters so casing from Shift does not change the identity of the combo.
