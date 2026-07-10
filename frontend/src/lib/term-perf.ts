@@ -71,13 +71,19 @@ function start(): void {
 
   // rAF gap watcher: frames >33ms are main-thread stalls not accounted for by
   // decode/write — eval of the event payload, ghostty paint, GC, React.
+  // Stall timestamps (ms, absolute) expose the cadence: ~3000ms spacing points
+  // at the git poll, irregular spacing at GC or one-off work.
   let last = performance.now()
+  let stallAt: number[] = []
   const tick = (now: number) => {
     const dt = now - last
     last = now
     if (dt > 33) {
       stats.stalls++
       stats.worstMs = Math.max(stats.worstMs, dt)
+      if (stallAt.length < 8) {
+        stallAt.push(Math.round(now))
+      }
     }
     requestAnimationFrame(tick)
   }
@@ -94,8 +100,10 @@ function start(): void {
         `render=${stats.renderMs.toFixed(1)}ms n=${stats.renders} ` +
         `maxRender=${stats.worstRenderMs.toFixed(0)}ms ` +
         `sprites/s=${stats.sprites} ` +
-        `stalls=${stats.stalls} worst=${stats.worstMs.toFixed(0)}ms`,
+        `stalls=${stats.stalls} worst=${stats.worstMs.toFixed(0)}ms` +
+        (stallAt.length > 0 ? ` at=${stallAt.join(",")}` : ""),
     )
+    stallAt = []
     stats.events = 0
     stats.bytes = 0
     stats.decodeMs = 0

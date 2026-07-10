@@ -1,54 +1,37 @@
-import {useEffect, useState} from "react"
+import {useCallback, useSyncExternalStore} from "react"
 import {Service as ProjectService} from "../../bindings/github.com/omartelo/lich/internal/project"
+import {createGitStatusStore, type GitStatus} from "./git-status-store"
+
+export type {GitStatus}
 
 const GIT_POLL_MS = 3_000
 
-export interface GitStatus {
-  branch: string
-  files: number
-  added: number
-  deleted: number
+async function fetchGitStatus(path: string): Promise<GitStatus | null> {
+  try {
+    const [branch, diff] = await Promise.all([
+      ProjectService.Branch(path),
+      ProjectService.Diff(path),
+    ])
+    return {branch, ...diff}
+  } catch {
+    return null
+  }
 }
 
-// useGitStatus polls branch + diff stats for a directory while the tab is
-// visible, refreshing immediately on path change and on tab re-focus. Returns
-// null until the first successful fetch (or after a failed one), so callers can
-// hide the segments instead of rendering misleading zeros.
+const store = createGitStatusStore(fetchGitStatus, GIT_POLL_MS)
+
+// useGitStatus subscribes to the shared per-path poller (see git-status-store):
+// all components watching the same directory share one fetch cycle, and an
+// unchanged status never re-renders them. Returns null until the first
+// successful fetch (or after a failed one), so callers can hide the segments
+// instead of rendering misleading zeros.
 export function useGitStatus(path: string): GitStatus | null {
-  const [status, setStatus] = useState<GitStatus | null>(null)
-  useEffect(() => {
-    if (!path) {
-      setStatus(null)
-      return
-    }
-    let alive = true
-    const refresh = async () => {
-      if (document.hidden) {
-        return
-      }
-      try {
-        const [branch, diff] = await Promise.all([
-          ProjectService.Branch(path),
-          ProjectService.Diff(path),
-        ])
-        if (alive) {
-          setStatus({branch, ...diff})
-        }
-      } catch {
-        if (alive) {
-          setStatus(null)
-        }
-      }
-    }
-    void refresh()
-    const timer = setInterval(() => void refresh(), GIT_POLL_MS)
-    const onVisible = () => void refresh()
-    document.addEventListener("visibilitychange", onVisible)
-    return () => {
-      alive = false
-      clearInterval(timer)
-      document.removeEventListener("visibilitychange", onVisible)
-    }
-  }, [path])
-  return status
+  const subscribe = useCallback(
+    (onChange: () => void) =>
+      path ? store.subscribe(path, onChange) : () => {},
+    [path],
+  )
+  return useSyncExternalStore(subscribe, () =>
+    path ? store.get(path) : null,
+  )
 }
