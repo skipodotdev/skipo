@@ -26,11 +26,17 @@ function useNow(): Date {
 
 const two = (n: number): string => String(n).padStart(2, "0")
 
+interface FooterBarProps {
+  diffOpen: boolean
+  onToggleDiff: () => void
+}
+
 // FooterBar is the Warp-style status strip: attach-file button and diff counters
 // on the left, git branch, working directory and clock on the right. Git
 // segments only render while a project is active. Everything follows the active
-// session: a worktree session shows its checkout's path, branch and diff.
-export function FooterBar() {
+// session: a worktree session shows its checkout's path, branch and diff. The
+// diff counters double as the toggle for the review panel.
+export function FooterBar({diffOpen, onToggleDiff}: FooterBarProps) {
   const {projects, sessions} = useProjects()
   const match = useMatch("/projects/:projectId")
   const projectId = match?.params.projectId ?? null
@@ -72,7 +78,16 @@ export function FooterBar() {
       {status && (
         <Tooltip>
           <TooltipTrigger
-            render={<span className="flex items-center gap-1.5"/>}
+            render={
+              <button
+                type="button"
+                onClick={onToggleDiff}
+                aria-pressed={diffOpen}
+                className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground ${
+                  diffOpen ? "bg-accent text-accent-foreground" : ""
+                }`}
+              />
+            }
           >
             {status.files === 0 ? (
               <>± 0</>
@@ -90,7 +105,7 @@ export function FooterBar() {
               </>
             )}
           </TooltipTrigger>
-          <TooltipContent>Uncommitted changes</TooltipContent>
+          <TooltipContent>Review changes</TooltipContent>
         </Tooltip>
       )}
 

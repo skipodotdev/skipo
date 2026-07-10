@@ -148,3 +148,60 @@
     @apply font-sans;
     }
 }
+
+/* Diff viewer (CodeMirror line + gutter decorations). Classic emerald/red for
+   add/del — the footer's counters keep the app's sky/pink identity. The 3px
+   strip lives on the gutter cell (leftmost edge) as an inset box-shadow, which
+   doesn't shift content the way border-left would. */
+.cm-diff-add {
+  background-color: color-mix(in oklab, var(--color-emerald-500) 12%, transparent);
+}
+.cm-diff-del {
+  background-color: color-mix(in oklab, var(--color-red-500) 10%, transparent);
+}
+.dark .cm-diff-add {
+  background-color: color-mix(in oklab, var(--color-emerald-400) 14%, transparent);
+}
+.dark .cm-diff-del {
+  background-color: color-mix(in oklab, var(--color-red-400) 12%, transparent);
+}
+
+.cm-diff-gutter-add {
+  background-color: color-mix(in oklab, var(--color-emerald-500) 18%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--color-emerald-500);
+}
+.cm-diff-gutter-del {
+  background-color: color-mix(in oklab, var(--color-red-500) 15%, transparent);
+  box-shadow: inset 3px 0 0 0 var(--color-red-500);
+}
+
+/* Hunk separator: an empty doc line drawing a thin centered rule (a gradient
+   doesn't change the line height, which CodeMirror measures from the DOM). */
+.cm-diff-sep {
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(50% - 0.5px),
+    var(--border) calc(50% - 0.5px),
+    var(--border) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+}
+
+/* Syntax highlighting palette for @lezer/highlight's classHighlighter.
+   Muted hues legible on both themes; dark overrides lift the lightness. */
+.tok-keyword { color: oklch(0.45 0.17 305); }
+.tok-string, .tok-string2 { color: oklch(0.47 0.11 150); }
+.tok-comment { color: var(--muted-foreground); font-style: italic; }
+.tok-number, .tok-atom, .tok-bool, .tok-literal { color: oklch(0.52 0.13 60); }
+.tok-typeName, .tok-className, .tok-namespace { color: oklch(0.48 0.1 200); }
+.tok-propertyName { color: oklch(0.45 0.13 255); }
+.tok-variableName.tok-definition { color: oklch(0.45 0.13 255); }
+.tok-operator, .tok-punctuation, .tok-meta { color: var(--muted-foreground); }
+.tok-invalid { color: var(--destructive); }
+
+.dark .tok-keyword { color: oklch(0.75 0.14 305); }
+.dark .tok-string, .dark .tok-string2 { color: oklch(0.78 0.11 150); }
+.dark .tok-number, .dark .tok-atom, .dark .tok-bool, .dark .tok-literal { color: oklch(0.78 0.12 65); }
+.dark .tok-typeName, .dark .tok-className, .dark .tok-namespace { color: oklch(0.8 0.09 200); }
+.dark .tok-propertyName { color: oklch(0.75 0.1 255); }
+.dark .tok-variableName.tok-definition { color: oklch(0.75 0.1 255); }

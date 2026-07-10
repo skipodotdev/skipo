@@ -1,5 +1,4 @@
-import {useRef, useState} from "react"
-import type {PointerEvent as ReactPointerEvent} from "react"
+import {useState} from "react"
 import {useMatch} from "react-router-dom"
 import {Bot, GitBranch, Plus, Terminal} from "lucide-react"
 import {toast} from "sonner"
@@ -17,25 +16,7 @@ import {CloseWorktreeDialog, ForceRemoveWorktreeDialog} from "./CloseWorktreeDia
 import {SessionCard} from "./SessionCard"
 import {WorktreeDialog} from "./WorktreeDialog"
 import {useGitStatus} from "@/lib/useGitStatus"
-
-// Sidebar width bounds in rem, matching the Tailwind v4 spacing scale. State and
-// storage stay in rem; the pointer drag delta arrives in CSS pixels and is
-// converted with the 16px root font size Tailwind assumes.
-const REM_PX = 16
-const MIN_WIDTH_REM = 12
-const MAX_WIDTH_REM = 30
-const DEFAULT_WIDTH_REM = 15
-const WIDTH_STORAGE_KEY = "lich.sidebar.width"
-
-const clampWidth = (rem: number): number =>
-  Math.min(MAX_WIDTH_REM, Math.max(MIN_WIDTH_REM, rem))
-
-function readWidth(): number {
-  const stored = Number(localStorage.getItem(WIDTH_STORAGE_KEY))
-  return Number.isFinite(stored) && stored > 0
-    ? clampWidth(stored)
-    : DEFAULT_WIDTH_REM
-}
+import {usePanelWidth} from "@/lib/use-panel-width"
 
 // SessionSidebar lists the active project's sessions and can be drag-resized
 // within a fixed pixel range. Width persists across restarts. It renders nothing
@@ -58,8 +39,13 @@ export function SessionSidebar() {
   const projectId = match?.params.projectId
   const path = projects.find((p) => p.id === projectId)?.path ?? ""
   const git = useGitStatus(path)
-  const [width, setWidth] = useState(readWidth)
-  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null)
+  const {width, handleProps} = usePanelWidth({
+    storageKey: "lich.sidebar.width",
+    minRem: 12,
+    maxRem: 30,
+    defaultRem: 15,
+    edge: "right",
+  })
   const [worktreeOpen, setWorktreeOpen] = useState(false)
   const [pendingClose, setPendingClose] = useState<Session | null>(null)
   const [pendingForce, setPendingForce] = useState<Session | null>(null)
@@ -142,34 +128,6 @@ export function SessionSidebar() {
     }
   }
 
-  const startDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    dragRef.current = {startX: event.clientX, startWidth: width}
-    event.currentTarget.setPointerCapture(event.pointerId)
-  }
-
-  const onDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current
-    if (!drag) {
-      return
-    }
-    setWidth(clampWidth(drag.startWidth + (event.clientX - drag.startX) / REM_PX))
-  }
-
-  const endDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current
-    if (!drag) {
-      return
-    }
-    const finalWidth = clampWidth(
-      drag.startWidth + (event.clientX - drag.startX) / REM_PX,
-    )
-    dragRef.current = null
-    event.currentTarget.releasePointerCapture(event.pointerId)
-    setWidth(finalWidth)
-    localStorage.setItem(WIDTH_STORAGE_KEY, String(finalWidth))
-  }
-
   return (
     <aside
       className="relative flex shrink-0 flex-col border-r border-border bg-sidebar p-2"
@@ -246,9 +204,7 @@ export function SessionSidebar() {
         role="separator"
         aria-orientation="vertical"
         aria-label="Resize sidebar"
-        onPointerDown={startDrag}
-        onPointerMove={onDrag}
-        onPointerUp={endDrag}
+        {...handleProps}
         className="absolute right-0 top-0 h-full w-1.5 cursor-col-resize touch-none transition-colors hover:bg-accent"
       />
     </aside>

@@ -1,9 +1,11 @@
+import { useState } from "react"
 import { HashRouter, Outlet, Route, Routes } from "react-router-dom"
 import { SettingsProvider } from "@/lib/settings"
 import { ProjectsProvider } from "@/lib/projects"
 import { ProjectTabs } from "@/components/tabs/ProjectTabs"
 import { SessionSidebar } from "@/components/sidebar/SessionSidebar"
 import { TerminalHost } from "@/components/TerminalHost"
+import { DiffPanel } from "@/components/diff/DiffPanel"
 import { FooterBar } from "@/components/FooterBar"
 import { Home } from "@/components/Home"
 import { Settings } from "@/components/settings/Settings"
@@ -13,17 +15,25 @@ import { Toaster } from "@/components/ui/sonner"
 // TerminalHost stay mounted while the Outlet swaps screens (Home, Settings) on
 // top of the terminals.
 function Layout() {
+  const [diffOpen, setDiffOpen] = useState(false)
   return (
     <div className="flex h-screen w-screen flex-col bg-background">
       <ProjectTabs />
       <div className="flex flex-1 overflow-hidden">
         <SessionSidebar />
         <main className="flex flex-1 flex-col overflow-hidden">
-          <div className="relative flex-1 overflow-hidden">
-            <TerminalHost />
-            <Outlet />
+          {/* relative: DiffPanel overlays this area when in full screen. */}
+          <div className="relative flex flex-1 overflow-hidden">
+            <div className="relative flex-1 overflow-hidden">
+              <TerminalHost />
+              <Outlet />
+            </div>
+            {diffOpen && <DiffPanel onClose={() => setDiffOpen(false)} />}
           </div>
-          <FooterBar />
+          <FooterBar
+            diffOpen={diffOpen}
+            onToggleDiff={() => setDiffOpen((v) => !v)}
+          />
         </main>
       </div>
     </div>
