@@ -55,6 +55,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Terminal now fills the container edge to edge — replaced ghostty-web's
+  FitAddon, which reserved a fixed 15px scrollbar gutter and left a band on the
+  right.
 - Hid the native caret over the terminal canvas.
 - Synthesized block-element glyphs in the terminal renderer.
 - Derived cell height from the font bounding box.

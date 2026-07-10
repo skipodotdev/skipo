@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react"
-import { init, Terminal as Ghostty, FitAddon } from "ghostty-web"
+import { init, Terminal as Ghostty } from "ghostty-web"
 import { Clipboard, Events } from "@wailsio/runtime"
 import { Service } from "../../bindings/github.com/omartelo/lich/internal/terminal"
 import { toast } from "sonner"
@@ -8,6 +8,7 @@ import { patchBlockGlyphs } from "@/lib/block-glyphs"
 import { patchFontMetrics } from "@/lib/font-metrics"
 import { pauseRenderLoop, resumeRenderLoop } from "@/lib/render-pause"
 import { isTextPasteChord, missingKeySequence } from "@/lib/term-keys"
+import { computeGrid } from "@/lib/term-fit"
 import { useSettings } from "@/lib/settings"
 import type { ResolvedTheme } from "@/lib/settings"
 import type { SessionKind } from "@/lib/sessions"
@@ -58,6 +59,20 @@ function decodeBase64(data: string): Uint8Array {
   return bytes
 }
 
+// fitTerminal resizes the grid to fill the container edge to edge (replacing
+// ghostty-web's FitAddon, which reserves a fixed 15px right gutter). No-op when
+// metrics or size aren't ready yet, or the grid is already the right size.
+function fitTerminal(term: Ghostty, container: HTMLElement): void {
+  const cell = term.renderer?.getMetrics()
+  if (!cell) {
+    return
+  }
+  const grid = computeGrid(container.clientWidth, container.clientHeight, cell)
+  if (grid && (grid.cols !== term.cols || grid.rows !== term.rows)) {
+    term.resize(grid.cols, grid.rows)
+  }
+}
+
 interface TerminalViewProps {
   sessionId: string
   projectId: string
@@ -70,7 +85,6 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
   const { font, resolvedTerminalTheme } = useSettings()
   const containerRef = useRef<HTMLDivElement | null>(null)
   const termRef = useRef<Ghostty | null>(null)
-  const fitRef = useRef<FitAddon | null>(null)
   // Latest values for use inside long-lived async callbacks / listeners.
   const visibleRef = useRef(visible)
   const fontRef = useRef(font)
@@ -122,7 +136,7 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
         if (!term || !visibleRef.current) {
           return
         }
-        fitRef.current?.fit()
+        fitTerminal(term, container)
         void Service.Resize(sessionId, term.cols, term.rows)
       }, REFIT_DEBOUNCE_MS)
     }
@@ -141,16 +155,13 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
         scrollback: 5000,
         theme: TERMINAL_COLORS[themeRef.current],
       })
-      const fit = new FitAddon()
-      term.loadAddon(fit)
       term.open(container)
       if (term.renderer) {
         patchBlockGlyphs(term.renderer)
         patchFontMetrics(term.renderer)
       }
-      fit.fit()
+      fitTerminal(term, container)
       termRef.current = term
-      fitRef.current = fit
 
       // Sequences ghostty-web 0.4.0 gets wrong (Shift+Tab, Alt chords) are
       // written to the PTY directly; returning true stops the terminal from
@@ -231,7 +242,6 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
       void Service.Close(sessionId)
       termRef.current?.dispose()
       termRef.current = null
-      fitRef.current = null
     }
   }, [sessionId, projectId, cwd, kind])
 
@@ -245,7 +255,10 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
       await ensureFontLoaded(font)
       term.renderer?.setFontFamily(font)
       // Font metrics changed: recompute the grid and sync the visible PTY.
-      fitRef.current?.fit()
+      const container = containerRef.current
+      if (container) {
+        fitTerminal(term, container)
+      }
       if (visibleRef.current) {
         void Service.Resize(sessionId, term.cols, term.rows)
       }
@@ -274,7 +287,10 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
     }
     resumeRenderLoop(term)
     void Service.SetVisible(sessionId, true)
-    fitRef.current?.fit()
+    const container = containerRef.current
+    if (container) {
+      fitTerminal(term, container)
+    }
     void Service.Resize(sessionId, term.cols, term.rows)
     term.focus()
   }, [visible, sessionId])
