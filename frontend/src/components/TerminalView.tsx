@@ -1,13 +1,13 @@
 import { useEffect, useRef } from "react"
 import { init, Terminal as Ghostty, FitAddon } from "ghostty-web"
-import { Events } from "@wailsio/runtime"
+import { Clipboard, Events } from "@wailsio/runtime"
 import { Service } from "../../bindings/github.com/omartelo/lich/internal/terminal"
 import { toast } from "sonner"
 import { copyToastMessage, COPY_TOAST_DURATION_MS } from "@/lib/copy-toast"
 import { patchBlockGlyphs } from "@/lib/block-glyphs"
 import { patchFontMetrics } from "@/lib/font-metrics"
 import { pauseRenderLoop, resumeRenderLoop } from "@/lib/render-pause"
-import { missingKeySequence } from "@/lib/term-keys"
+import { isTextPasteChord, missingKeySequence } from "@/lib/term-keys"
 import { useSettings } from "@/lib/settings"
 import type { ResolvedTheme } from "@/lib/settings"
 import type { SessionKind } from "@/lib/sessions"
@@ -156,6 +156,17 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
       // written to the PTY directly; returning true stops the terminal from
       // sending its own broken encoding. See term-keys.ts.
       term.attachCustomKeyEventHandler((event) => {
+        // Ctrl+Shift+V pastes text via the Wails clipboard (the webview's
+        // paste event handles text only). Plain Ctrl+V reaches the PTY as SYN
+        // through missingKeySequence, like a real terminal.
+        if (isTextPasteChord(event)) {
+          void Clipboard.Text().then((text) => {
+            if (text) {
+              term.paste(text)
+            }
+          })
+          return true
+        }
         const seq = missingKeySequence(event)
         if (seq === null) {
           return false

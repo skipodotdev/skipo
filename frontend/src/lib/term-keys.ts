@@ -24,6 +24,18 @@ export function missingKeySequence(event: TermKeyState): string | null {
     event.key === "Backspace"
   )
     return "\x17"
+  // ghostty-web swallows Ctrl+V so the browser's text-only paste event fires,
+  // which hides the keypress from TUIs that read the clipboard themselves on
+  // ^V (Claude Code image attach). Deliver SYN like a real terminal; text
+  // paste moves to Ctrl+Shift+V (isTextPasteChord).
+  if (
+    event.ctrlKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    !event.shiftKey &&
+    (event.code === "KeyV" || event.key.toLowerCase() === "v")
+  )
+    return "\x16"
   if (event.ctrlKey || event.metaKey) return null
   // AltGr (ISO Level3) also reports altKey on some layouts; it is composing a
   // character, not an Alt chord — let the terminal handle it.
@@ -41,4 +53,19 @@ export function missingKeySequence(event: TermKeyState): string | null {
     if (event.key.length === 1) return "\x1b" + event.key
   }
   return null
+}
+
+/**
+ * Ctrl+Shift+V — the terminal-convention text-paste chord. Handled outside
+ * missingKeySequence because pasting needs the async Wails clipboard read,
+ * not a fixed byte sequence.
+ */
+export function isTextPasteChord(event: TermKeyState): boolean {
+  return (
+    event.ctrlKey &&
+    event.shiftKey &&
+    !event.metaKey &&
+    !event.altKey &&
+    (event.code === "KeyV" || event.key.toLowerCase() === "v")
+  )
 }

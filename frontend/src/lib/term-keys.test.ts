@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { missingKeySequence, type TermKeyState } from "./term-keys"
+import { isTextPasteChord, missingKeySequence, type TermKeyState } from "./term-keys"
 
 const key = (over: Partial<TermKeyState>): TermKeyState => ({
   ctrlKey: false,
@@ -31,6 +31,11 @@ describe("missingKeySequence", () => {
     ).toBeNull()
   })
 
+  it("maps Ctrl+V to SYN so TUIs see the paste chord", () => {
+    expect(missingKeySequence(key({ ctrlKey: true, key: "v" }))).toBe("\x16")
+    expect(missingKeySequence(key({ ctrlKey: true, shiftKey: true, key: "V" }))).toBeNull()
+  })
+
   it("prefixes Alt+<char> with ESC", () => {
     expect(missingKeySequence(key({ altKey: true, key: "t" }))).toBe("\x1bt")
     expect(missingKeySequence(key({ altKey: true, shiftKey: true, key: "T" }))).toBe("\x1bT")
@@ -47,6 +52,16 @@ describe("missingKeySequence", () => {
     expect(missingKeySequence(key({ ctrlKey: true, shiftKey: true, key: "Tab" }))).toBeNull()
     expect(missingKeySequence(key({ metaKey: true, altKey: true, key: "t" }))).toBeNull()
     expect(missingKeySequence(key({ altKey: true, key: "ArrowLeft" }))).toBeNull() // non-char
+  })
+
+  it("detects Ctrl+Shift+V as the text-paste chord", () => {
+    expect(isTextPasteChord(key({ ctrlKey: true, shiftKey: true, key: "V" }))).toBe(true)
+    const gtk = { ...key({ ctrlKey: true, shiftKey: true, key: "V" }), code: "KeyV" }
+    expect(isTextPasteChord(gtk)).toBe(true)
+    expect(isTextPasteChord(key({ ctrlKey: true, key: "v" }))).toBe(false)
+    expect(isTextPasteChord(key({ ctrlKey: true, shiftKey: true, altKey: true, key: "V" }))).toBe(
+      false,
+    )
   })
 
   it("ignores AltGr composition", () => {
