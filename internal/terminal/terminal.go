@@ -46,12 +46,20 @@ type Service struct {
 	mu       sync.Mutex
 	sessions map[string]*session
 	bins     BinResolver
+	// ws is the local WebSocket transport for terminal I/O (see transport.go);
+	// nil when it failed to start, leaving the Wails event bridge as the path.
+	ws *transport
 }
 
 // New returns a ready-to-use terminal service that resolves the binary to spawn
 // through bins.
 func New(bins BinResolver) *Service {
-	return &Service{sessions: make(map[string]*session), bins: bins}
+	s := &Service{sessions: make(map[string]*session), bins: bins}
+	ws, err := newTransport(func(id string, data []byte) { _ = s.writeBytes(id, data) })
+	if err == nil {
+		s.ws = ws
+	}
+	return s
 }
 
 // defaultBin is the Claude Code binary spawned when the user has not configured
@@ -119,6 +127,9 @@ func (s *Service) Start(id, projectID, cwd, kind string, cols, rows int) error {
 	}
 
 	out := newCoalescer(func(data []byte) {
+		if s.ws != nil && s.ws.send(id, data) {
+			return
+		}
 		encoded := base64.StdEncoding.EncodeToString(data)
 		application.Get().Event.Emit(dataEventPrefix+id, encoded)
 	}, visibleFlushInterval, hiddenFlushInterval)
@@ -158,11 +169,18 @@ func (s *Service) stream(id string, ptmx *os.File, cmd *exec.Cmd, out *coalescer
 
 // Write forwards keyboard input from the frontend to a session's PTY.
 func (s *Service) Write(id, data string) error {
+	return s.writeBytes(id, []byte(data))
+}
+
+// writeBytes delivers input bytes to a session's PTY; unknown sessions are a
+// no-op. It is the shared sink for the Wails binding and the WebSocket
+// transport's input frames.
+func (s *Service) writeBytes(id string, data []byte) error {
 	ptmx := s.ptmxOf(id)
 	if ptmx == nil {
 		return nil
 	}
-	_, err := ptmx.Write([]byte(data))
+	_, err := ptmx.Write(data)
 	return err
 }
 

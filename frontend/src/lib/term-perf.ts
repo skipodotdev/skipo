@@ -15,8 +15,29 @@ const stats = {
   renderMs: 0,
   worstRenderMs: 0,
   sprites: 0,
+  rafMs: 0,
+  rafN: 0,
+  rafWorstMs: 0,
 }
 let started = false
+
+// wrapRaf measures every requestAnimationFrame callback so rAF work (ghostty
+// render loops, scrollbar fades) can be separated from engine work (paint,
+// GC, IPC dispatch) inside a stall: raf≈stall means the callback is guilty,
+// raf≪stall means the engine is. Loops that started before the wrap pick it
+// up on their next self-rescheduled frame.
+function wrapRaf(): void {
+  const original = window.requestAnimationFrame.bind(window)
+  window.requestAnimationFrame = (callback) =>
+    original((time) => {
+      const t0 = performance.now()
+      callback(time)
+      const dt = performance.now() - t0
+      stats.rafMs += dt
+      stats.rafN++
+      stats.rafWorstMs = Math.max(stats.rafWorstMs, dt)
+    })
+}
 
 // instrumentRender wraps a ghostty renderer's render() so paint cost shows up
 // in the per-second report — it runs inside ghostty's own rAF, invisible to
@@ -68,6 +89,7 @@ function start(): void {
     return
   }
   started = true
+  wrapRaf()
 
   // rAF gap watcher: frames >33ms are main-thread stalls not accounted for by
   // decode/write — eval of the event payload, ghostty paint, GC, React.
@@ -100,6 +122,8 @@ function start(): void {
         `render=${stats.renderMs.toFixed(1)}ms n=${stats.renders} ` +
         `maxRender=${stats.worstRenderMs.toFixed(0)}ms ` +
         `sprites/s=${stats.sprites} ` +
+        `raf=${stats.rafMs.toFixed(0)}ms rafN=${stats.rafN} ` +
+        `rafWorst=${stats.rafWorstMs.toFixed(0)}ms ` +
         `stalls=${stats.stalls} worst=${stats.worstMs.toFixed(0)}ms` +
         (stallAt.length > 0 ? ` at=${stallAt.join(",")}` : ""),
     )
@@ -114,5 +138,8 @@ function start(): void {
     stats.renderMs = 0
     stats.worstRenderMs = 0
     stats.sprites = 0
+    stats.rafMs = 0
+    stats.rafN = 0
+    stats.rafWorstMs = 0
   }, 1000)
 }

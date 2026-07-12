@@ -9,6 +9,7 @@ import { patchFontMetrics } from "@/lib/font-metrics"
 import { patchGlyphAtlas } from "@/lib/glyph-atlas"
 import { patchPooledGetLine } from "@/lib/getline-pool"
 import { patchScrollGate, patchScrollbackCache } from "@/lib/scrollback-perf"
+import { ensureTransport, onSessionData, sendInput } from "@/lib/term-transport"
 import { pauseRenderLoop, resumeRenderLoop } from "@/lib/render-pause"
 import { patchRowPaint } from "@/lib/row-paint"
 import { isTextPasteChord, missingKeySequence } from "@/lib/term-keys"
@@ -175,6 +176,15 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
       patchScrollbackCache(term)
       fitTerminal(term, container)
       termRef.current = term
+      ensureTransport()
+
+      // Input goes over the local WebSocket when it is up; otherwise the
+      // Wails binding. Both land in the same PTY write on the backend.
+      const writeInput = (data: string) => {
+        if (!sendInput(sessionId, data)) {
+          void Service.Write(sessionId, data)
+        }
+      }
 
       // Sequences ghostty-web 0.4.0 gets wrong (Shift+Tab, Alt chords) are
       // written to the PTY directly; returning true stops the terminal from
@@ -195,11 +205,11 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
         if (seq === null) {
           return false
         }
-        void Service.Write(sessionId, seq)
+        writeInput(seq)
         return true
       })
 
-      const dataInput = term.onData((data) => Service.Write(sessionId, data))
+      const dataInput = term.onData(writeInput)
       const resizeInput = term.onResize(({ cols, rows }) => {
         if (visibleRef.current) {
           void Service.Resize(sessionId, cols, rows)
@@ -228,10 +238,17 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
         term.write(bytes)
         recordChunk(t1 - t0, performance.now() - t1, bytes.length)
       })
+      // Output arrives here while the WebSocket is up, on the Wails event
+      // above while it is down; the backend routes each chunk to exactly one.
+      const offWsData = onSessionData(sessionId, (payload) => {
+        const t0 = performance.now()
+        term.write(payload)
+        recordChunk(0, performance.now() - t0, payload.length)
+      })
       const offExit = Events.On(EXIT_EVENT_PREFIX + sessionId, () => {
         term.write("\r\n[process exited]\r\n")
       })
-      cleanups.push(offData, offExit)
+      cleanups.push(offData, offWsData, offExit)
 
       const resizeObserver = new ResizeObserver(scheduleRefit)
       resizeObserver.observe(container)
