@@ -7,14 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-13
+
 ### Added
 
 - Settings gained a "Project" group with a per-project Claude Code binary
   override. The backend already resolved project → global → `$PATH`; the
   override just had no UI.
+- Terminal URLs (OSC 8 hyperlinks and detected URLs) now hover-underline and
+  open in the OS browser on Ctrl/Cmd-click. ghostty-web ships link detection
+  but registers no provider by default, and its `window.open` is trapped by
+  the WebKitGTK webview; lich registers both providers and routes clicks
+  through Wails' `Browser.OpenURL` to the desktop default.
 
 ### Fixed
 
+- Mouse wheel now scrolls instead of sending arrow keys. ghostty-web reports
+  no mouse events, so its alternate-screen emulation turned each wheel tick
+  into an arrow key — which Claude Code flagged as "arrow keys · use PgUp/PgDn
+  to scroll". The wheel now forwards a real SGR report to apps with mouse
+  tracking (they scroll by their own line increment), falls back to PgUp/PgDn
+  in the alternate screen otherwise, and scrolls ghostty's own scrollback
+  everywhere else.
+- Stray editable nodes no longer accumulate in the terminal container. On the
+  forced X11 backend, middle-click primary-selection paste and drag-drop
+  inserted editable nodes past ghostty's `beforeinput` guard, pushing the
+  in-flow canvas down and leaving selectable text behind; a `MutationObserver`
+  now removes any node other than the canvas and textarea ghostty owns.
 - Terminal sessions no longer inherit the AppImage's runtime environment.
   Beyond the vars stripped in #3, `childEnv` now drops the AppImageLauncher
   vars and the `WEBKIT_DISABLE_*` pair, and scrubs mount paths out of
@@ -149,6 +168,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CPU, costing ~40ms per frame in a full-size window. Under Xwayland typing is
   stall-free at full frame rate.
 
-[Unreleased]: https://github.com/omartelo/lich/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/omartelo/lich/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/omartelo/lich/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/omartelo/lich/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/omartelo/lich/releases/tag/v0.1.0
