@@ -60,15 +60,16 @@ regenerates the gitignored Go→TS bindings (`task common:generate:bindings`) an
 builds the frontend **before** the Go tests — the backend `go:embed`s
 `frontend/dist`, so Go code doesn't compile without it.
 
-The release version comes from the git tag. `build/config.yml`'s `info.version`
-is packaging metadata only — there is no ldflags injection, so keep it in step
-with the tag by hand (see the checklist).
+The release version comes from the git tag. The Linux package version (`.deb`,
+`.rpm`, `.pkg.tar.zst`) is derived from the tag automatically: `build/linux/Taskfile.yml`
+computes `VERSION` via `git describe` (env `VERSION` overrides) and injects it into
+`nfpm.yaml`'s `${VERSION}` — no manual bump. `build/config.yml`'s `info.version` is
+inert on Linux (nothing reads it at runtime) and is left as-is.
 
 Before tagging:
 
 - [ ] Backend: `go test -race ./...` passes, `go vet ./...` clean, `gofmt` applied.
 - [ ] Frontend: `cd frontend && pnpm build` (tsc + vite) and `pnpm test` pass.
-- [ ] Bump `info.version` in `build/config.yml` to match the tag.
 - [ ] Move `CHANGELOG.md`'s `[Unreleased]` entries under a new `vX.Y.Z` heading and refresh the compare links.
 - [ ] Optional local dry run: `task linux:package` (writes the artifacts to `bin/`).
 - [ ] Tag `vX.Y.Z` and push — the workflow builds, packages, and publishes the Release.
