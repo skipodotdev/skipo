@@ -77,18 +77,25 @@ func decodeFrame(buf []byte) (string, []byte, error) {
 // transport is the local WebSocket endpoint. One client (the webview) is
 // expected; a new connection replaces the previous one.
 type transport struct {
-	mu     sync.Mutex
-	conn   *websocket.Conn
-	port   int
-	token  string
-	input  func(id string, data []byte)
-	status func(id, state string)
+	mu          sync.Mutex
+	conn        *websocket.Conn
+	port        int
+	token       string
+	input       func(id string, data []byte)
+	status      func(id, state string)
+	linkSession func(sessionID, claudeSessionID string) error
 }
 
 // newTransport starts the listener on a random loopback port. input receives
 // decoded input frames (keyboard data for a session's PTY); status receives a
-// session's processing state reported by the Claude Code hook (see /hook).
-func newTransport(input func(id string, data []byte), status func(id, state string)) (*transport, error) {
+// session's processing state reported by the Claude Code hook (see /hook);
+// linkSession records the Claude session id a PTY reports at start (see
+// /session-start).
+func newTransport(
+	input func(id string, data []byte),
+	status func(id, state string),
+	linkSession func(sessionID, claudeSessionID string) error,
+) (*transport, error) {
 	raw := make([]byte, tokenBytes)
 	if _, err := rand.Read(raw); err != nil {
 		return nil, fmt.Errorf("failed to generate transport token: %w", err)
@@ -98,14 +105,16 @@ func newTransport(input func(id string, data []byte), status func(id, state stri
 		return nil, fmt.Errorf("failed to listen for transport: %w", err)
 	}
 	t := &transport{
-		port:   listener.Addr().(*net.TCPAddr).Port,
-		token:  hex.EncodeToString(raw),
-		input:  input,
-		status: status,
+		port:        listener.Addr().(*net.TCPAddr).Port,
+		token:       hex.EncodeToString(raw),
+		input:       input,
+		status:      status,
+		linkSession: linkSession,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", t.handle)
 	mux.HandleFunc("/hook", t.hook)
+	mux.HandleFunc("/session-start", t.sessionStart)
 	// ponytail: server and listener live for the process lifetime, like the
 	// PTY sessions they serve; add Shutdown if the app ever needs teardown.
 	go func() { _ = http.Serve(listener, mux) }()
@@ -165,6 +174,57 @@ func parseHookRequest(body []byte) (id, state string, err error) {
 		return "", "", fmt.Errorf("hook has unknown state %q", req.State)
 	}
 	return req.SessionID, req.State, nil
+}
+
+// sessionStart receives the SessionStart POST from the Claude Code hook running
+// inside a spawned PTY and records the Claude session id against the lich
+// session via the linkSession callback. A store failure is a 500 so it surfaces
+// in logs; the hook ignores the response either way.
+func (t *transport) sessionStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !t.authorized(r) {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, hookBodyLimit))
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+	id, claudeID, err := parseSessionStart(body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if t.linkSession != nil {
+		if err := t.linkSession(id, claudeID); err != nil {
+			http.Error(w, "failed to record session", http.StatusInternalServerError)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// parseSessionStart validates a SessionStart POST body: the lich session id and
+// the non-empty Claude session id it is reporting. Both must be present.
+func parseSessionStart(body []byte) (id, claudeID string, err error) {
+	var req struct {
+		SessionID       string `json:"session_id"`
+		ClaudeSessionID string `json:"claude_session_id"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		return "", "", fmt.Errorf("invalid session-start body: %w", err)
+	}
+	if req.SessionID == "" {
+		return "", "", errors.New("session-start missing session_id")
+	}
+	if req.ClaudeSessionID == "" {
+		return "", "", errors.New("session-start missing claude_session_id")
+	}
+	return req.SessionID, req.ClaudeSessionID, nil
 }
 
 // handle upgrades the single expected client. See authorized for the auth model.

@@ -80,6 +80,21 @@ func (s *Service) RenameSession(sessionID, label string) error {
 	return nil
 }
 
+// SetClaudeSession records the Claude Code session id running inside a lich
+// session's PTY, reported by the SessionStart hook. A session whose row does not
+// exist yet (the hook racing session persistence) matches nothing and is not an
+// error — the id is simply dropped, which is acceptable for the features it
+// backs. Re-reporting (e.g. after a resume) overwrites with the latest id.
+func (s *Service) SetClaudeSession(sessionID, claudeSessionID string) error {
+	if _, err := s.db.Exec(
+		`UPDATE sessions SET claude_session_id = ? WHERE id = ?`,
+		claudeSessionID, sessionID,
+	); err != nil {
+		return fmt.Errorf("set claude session: %w", err)
+	}
+	return nil
+}
+
 // SetActiveSession records which session is focused within a project.
 func (s *Service) SetActiveSession(projectID, sessionID string) error {
 	if _, err := s.db.Exec(

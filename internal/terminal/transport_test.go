@@ -72,7 +72,7 @@ func dial(t *testing.T, tr *transport, token string) (*websocket.Conn, error) {
 }
 
 func TestTransportRejectsBadToken(t *testing.T) {
-	tr, err := newTransport(func(string, []byte) {}, nil)
+	tr, err := newTransport(func(string, []byte) {}, nil, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestTransportInputReachesService(t *testing.T) {
 	got := make(chan string, 1)
 	tr, err := newTransport(func(id string, data []byte) {
 		got <- id + ":" + string(data)
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestTransportInputReachesService(t *testing.T) {
 }
 
 func TestTransportSendAndFallback(t *testing.T) {
-	tr, err := newTransport(func(string, []byte) {}, nil)
+	tr, err := newTransport(func(string, []byte) {}, nil, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestHookForwardsStatus(t *testing.T) {
 	got := make(chan string, 1)
 	tr, err := newTransport(func(string, []byte) {}, func(id, state string) {
 		got <- id + ":" + state
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestHookForwardsStatus(t *testing.T) {
 
 func TestHookRejectsBadToken(t *testing.T) {
 	fired := make(chan struct{}, 1)
-	tr, err := newTransport(func(string, []byte) {}, func(string, string) { fired <- struct{}{} })
+	tr, err := newTransport(func(string, []byte) {}, func(string, string) { fired <- struct{}{} }, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -231,6 +231,94 @@ func TestHookRejectsBadToken(t *testing.T) {
 	select {
 	case <-fired:
 		t.Fatal("status callback fired despite a bad token")
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestParseSessionStart(t *testing.T) {
+	tests := []struct {
+		name         string
+		body         string
+		wantID       string
+		wantClaudeID string
+		wantErr      bool
+	}{
+		{"ok", `{"session_id":"s1","claude_session_id":"uuid-1"}`, "s1", "uuid-1", false},
+		{"missing session id", `{"claude_session_id":"uuid-1"}`, "", "", true},
+		{"missing claude id", `{"session_id":"s1"}`, "", "", true},
+		{"empty claude id", `{"session_id":"s1","claude_session_id":""}`, "", "", true},
+		{"bad json", `{`, "", "", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			id, claudeID, err := parseSessionStart([]byte(tc.body))
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for %q", tc.body)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if id != tc.wantID || claudeID != tc.wantClaudeID {
+				t.Fatalf("got (%q,%q), want (%q,%q)", id, claudeID, tc.wantID, tc.wantClaudeID)
+			}
+		})
+	}
+}
+
+func TestSessionStartLinksSession(t *testing.T) {
+	got := make(chan string, 1)
+	tr, err := newTransport(func(string, []byte) {}, nil, func(id, claudeID string) error {
+		got <- id + ":" + claudeID
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("newTransport: %v", err)
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%d/session-start?token=%s", tr.port, tr.token)
+	resp, err := http.Post(url, "application/json",
+		strings.NewReader(`{"session_id":"sess","claude_session_id":"uuid-9"}`))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", resp.StatusCode)
+	}
+	select {
+	case v := <-got:
+		if v != "sess:uuid-9" {
+			t.Fatalf("got %q", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("session id never reached the callback")
+	}
+}
+
+func TestSessionStartRejectsBadToken(t *testing.T) {
+	fired := make(chan struct{}, 1)
+	tr, err := newTransport(func(string, []byte) {}, nil, func(string, string) error {
+		fired <- struct{}{}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("newTransport: %v", err)
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%d/session-start?token=wrong", tr.port)
+	resp, err := http.Post(url, "application/json",
+		strings.NewReader(`{"session_id":"s","claude_session_id":"u"}`))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", resp.StatusCode)
+	}
+	select {
+	case <-fired:
+		t.Fatal("link callback fired despite a bad token")
 	case <-time.After(200 * time.Millisecond):
 	}
 }

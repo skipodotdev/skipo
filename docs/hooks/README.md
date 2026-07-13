@@ -58,3 +58,5 @@ stays safe to install globally.
 
 - [session-state.md](session-state.md) — a session's processing state
   (`busy`/`done`) shown on its card.
+- [session-start.md](session-start.md) — the Claude session id, persisted
+  against the lich session for later features.

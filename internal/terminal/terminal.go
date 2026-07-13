@@ -40,18 +40,20 @@ type session struct {
 	out  *coalescer
 }
 
-// BinResolver supplies the Claude Code binary path to spawn for a project. An
-// empty return spawns the default binary. The store implements it, reading the
-// per-project override or the global setting.
-type BinResolver interface {
+// Store is the persistence the terminal service depends on: the Claude Code
+// binary to spawn for a project (empty return spawns the default), and where to
+// record the Claude session id a PTY reports through the SessionStart hook. The
+// store implements both.
+type Store interface {
 	ClaudeBin(projectID string) string
+	SetClaudeSession(sessionID, claudeSessionID string) error
 }
 
 // Service manages PTY-backed shell sessions keyed by session ID.
 type Service struct {
 	mu       sync.Mutex
 	sessions map[string]*session
-	bins     BinResolver
+	store    Store
 	// env is the environment every spawned session inherits: the launch
 	// environment cleaned of AppImage runtime leakage (see childEnv), plus TERM.
 	env []string
@@ -61,18 +63,19 @@ type Service struct {
 }
 
 // New returns a ready-to-use terminal service that resolves the binary to spawn
-// through bins. env is the process environment to derive session environments
+// through store. env is the process environment to derive session environments
 // from — callers pass a snapshot taken before any os.Setenv tweaks (main.go
 // forces GDK_BACKEND on Linux) so those never leak into spawned shells.
-func New(bins BinResolver, env []string) *Service {
+func New(store Store, env []string) *Service {
 	s := &Service{
 		sessions: make(map[string]*session),
-		bins:     bins,
+		store:    store,
 		env:      append(childEnv(env), "TERM=xterm-256color"),
 	}
 	ws, err := newTransport(
 		func(id string, data []byte) { _ = s.writeBytes(id, data) },
 		func(id, state string) { application.Get().Event.Emit(statusEventPrefix+id, state) },
+		store.SetClaudeSession,
 	)
 	if err == nil {
 		s.ws = ws
@@ -240,7 +243,7 @@ func (s *Service) Start(id, projectID, cwd, kind string, cols, rows int) error {
 		cwd = home
 	}
 
-	cmd := exec.Command(resolveCommand(kind, s.bins.ClaudeBin(projectID), os.Getenv("SHELL")))
+	cmd := exec.Command(resolveCommand(kind, s.store.ClaudeBin(projectID), os.Getenv("SHELL")))
 	cmd.Dir = cwd
 	cmd.Env = s.sessionEnv(id)
 

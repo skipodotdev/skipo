@@ -99,6 +99,54 @@ func TestSessionKindPersistsAndDefaults(t *testing.T) {
 	}
 }
 
+// TestSetClaudeSessionPersistsAndDefaults proves the Claude session id survives
+// a reload, defaults to "" before the SessionStart hook reports it, and that a
+// re-report overwrites with the latest id.
+func TestSetClaudeSessionPersistsAndDefaults(t *testing.T) {
+	svc := newTestStore(t)
+	_ = svc.AddProject("p1", "alpha", "/tmp/alpha")
+	_ = svc.AddSession("p1", "s1", "Session 1", "", "", 2)
+	_ = svc.AddSession("p1", "s2", "Session 2", "", "", 3)
+
+	if err := svc.SetClaudeSession("s1", "uuid-abc"); err != nil {
+		t.Fatalf("SetClaudeSession: %v", err)
+	}
+	// Re-report (e.g. after a resume) overwrites with the newest id.
+	if err := svc.SetClaudeSession("s1", "uuid-def"); err != nil {
+		t.Fatalf("SetClaudeSession re-report: %v", err)
+	}
+
+	sessions := mustLoadSessions(t, svc)
+	if sessions[0].ClaudeSessionID != "uuid-def" {
+		t.Errorf("s1 claude id = %q, want uuid-def", sessions[0].ClaudeSessionID)
+	}
+	if sessions[1].ClaudeSessionID != "" {
+		t.Errorf("s2 claude id = %q, want empty", sessions[1].ClaudeSessionID)
+	}
+}
+
+// TestSetClaudeSessionUnknownSessionNoop proves reporting for a session whose
+// row does not exist (the hook racing persistence) is not an error.
+func TestSetClaudeSessionUnknownSessionNoop(t *testing.T) {
+	svc := newTestStore(t)
+	if err := svc.SetClaudeSession("ghost", "uuid-x"); err != nil {
+		t.Errorf("SetClaudeSession unknown = %v, want nil", err)
+	}
+}
+
+// mustLoadSessions loads the single test project's sessions or fails.
+func mustLoadSessions(t *testing.T, svc *Service) []Session {
+	t.Helper()
+	projects, err := svc.LoadState()
+	if err != nil {
+		t.Fatalf("LoadState: %v", err)
+	}
+	if len(projects) != 1 {
+		t.Fatalf("got %d projects, want 1", len(projects))
+	}
+	return projects[0].Sessions
+}
+
 func TestCloseProjectHidesButKeepsSessions(t *testing.T) {
 	svc := newTestStore(t)
 	_ = svc.AddProject("p1", "alpha", "/tmp/alpha")
@@ -265,6 +313,7 @@ func TestOperationsOnClosedStoreReturnErrors(t *testing.T) {
 	assertErr("AddSession", svc.AddSession("p1", "s1", "Session 1", "", "", 2))
 	assertErr("DeleteSession", svc.DeleteSession("p1", "s1", ""))
 	assertErr("RenameSession", svc.RenameSession("s1", "x"))
+	assertErr("SetClaudeSession", svc.SetClaudeSession("s1", "uuid"))
 	assertErr("SetActiveSession", svc.SetActiveSession("p1", "s1"))
 	assertErr("SetSetting", svc.SetSetting("k", "", "v"))
 
