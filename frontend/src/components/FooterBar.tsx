@@ -83,7 +83,7 @@ export function FooterBar({diffOpen, onToggleDiff}: FooterBarProps) {
                 type="button"
                 onClick={onToggleDiff}
                 aria-pressed={diffOpen}
-                className={`flex items-center gap-1.5 rounded-md px-1.5 py-0.5 transition-colors hover:bg-accent hover:text-accent-foreground ${
+                className={`flex items-center gap-1.5 rounded-md border border-border bg-muted px-1.5 py-1 transition-colors hover:bg-accent hover:text-accent-foreground ${
                   diffOpen ? "bg-accent text-accent-foreground" : ""
                 }`}
               />
