@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -70,7 +72,7 @@ func dial(t *testing.T, tr *transport, token string) (*websocket.Conn, error) {
 }
 
 func TestTransportRejectsBadToken(t *testing.T) {
-	tr, err := newTransport(func(string, []byte) {})
+	tr, err := newTransport(func(string, []byte) {}, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -83,7 +85,7 @@ func TestTransportInputReachesService(t *testing.T) {
 	got := make(chan string, 1)
 	tr, err := newTransport(func(id string, data []byte) {
 		got <- id + ":" + string(data)
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -113,7 +115,7 @@ func TestTransportInputReachesService(t *testing.T) {
 }
 
 func TestTransportSendAndFallback(t *testing.T) {
-	tr, err := newTransport(func(string, []byte) {})
+	tr, err := newTransport(func(string, []byte) {}, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -147,6 +149,89 @@ func TestTransportSendAndFallback(t *testing.T) {
 	}
 	if id != "sess" || string(payload) != "output" {
 		t.Fatalf("got id=%q payload=%q", id, payload)
+	}
+}
+
+func TestParseHookRequest(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantID    string
+		wantState string
+		wantErr   bool
+	}{
+		{"busy", `{"session_id":"s1","state":"busy"}`, "s1", "busy", false},
+		{"done", `{"session_id":"s2","state":"done"}`, "s2", "done", false},
+		{"missing id", `{"state":"busy"}`, "", "", true},
+		{"unknown state", `{"session_id":"s1","state":"cooking"}`, "", "", true},
+		{"empty state", `{"session_id":"s1"}`, "", "", true},
+		{"bad json", `{`, "", "", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			id, state, err := parseHookRequest([]byte(tc.body))
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for %q", tc.body)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if id != tc.wantID || state != tc.wantState {
+				t.Fatalf("got (%q,%q), want (%q,%q)", id, state, tc.wantID, tc.wantState)
+			}
+		})
+	}
+}
+
+func TestHookForwardsStatus(t *testing.T) {
+	got := make(chan string, 1)
+	tr, err := newTransport(func(string, []byte) {}, func(id, state string) {
+		got <- id + ":" + state
+	})
+	if err != nil {
+		t.Fatalf("newTransport: %v", err)
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%d/hook?token=%s", tr.port, tr.token)
+	resp, err := http.Post(url, "application/json", strings.NewReader(`{"session_id":"sess","state":"busy"}`))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", resp.StatusCode)
+	}
+	select {
+	case v := <-got:
+		if v != "sess:busy" {
+			t.Fatalf("got %q", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("status never forwarded to the callback")
+	}
+}
+
+func TestHookRejectsBadToken(t *testing.T) {
+	fired := make(chan struct{}, 1)
+	tr, err := newTransport(func(string, []byte) {}, func(string, string) { fired <- struct{}{} })
+	if err != nil {
+		t.Fatalf("newTransport: %v", err)
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%d/hook?token=wrong", tr.port)
+	resp, err := http.Post(url, "application/json", strings.NewReader(`{"session_id":"s","state":"busy"}`))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", resp.StatusCode)
+	}
+	select {
+	case <-fired:
+		t.Fatal("status callback fired despite a bad token")
+	case <-time.After(200 * time.Millisecond):
 	}
 }
 

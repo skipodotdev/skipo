@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -26,6 +27,10 @@ const (
 	dataEventPrefix = "terminal:data:"
 	// exitEventPrefix is emitted once when a session's shell process exits.
 	exitEventPrefix = "terminal:exit:"
+	// statusEventPrefix carries a session's Claude Code processing state
+	// ("busy"/"done"), reported by the lich hook running inside the PTY (see
+	// transport.hook and integrations/claude-plugin).
+	statusEventPrefix = "session-status:"
 )
 
 // session is a single running PTY-backed shell.
@@ -65,11 +70,33 @@ func New(bins BinResolver, env []string) *Service {
 		bins:     bins,
 		env:      append(childEnv(env), "TERM=xterm-256color"),
 	}
-	ws, err := newTransport(func(id string, data []byte) { _ = s.writeBytes(id, data) })
+	ws, err := newTransport(
+		func(id string, data []byte) { _ = s.writeBytes(id, data) },
+		func(id, state string) { application.Get().Event.Emit(statusEventPrefix+id, state) },
+	)
 	if err == nil {
 		s.ws = ws
 	}
 	return s
+}
+
+// sessionEnv is the environment for one PTY: the shared base plus the loopback
+// coordinates a Claude Code hook needs to report this session's status back to
+// lich. LICH_SESSION_ID is per-session, so this returns a fresh slice rather
+// than aliasing (and appending to) the shared s.env. When the transport failed
+// to start there is nowhere to report, so the base env is used unchanged — a
+// hook spawned in this PTY sees no LICH_PORT and no-ops.
+func (s *Service) sessionEnv(id string) []string {
+	if s.ws == nil {
+		return s.env
+	}
+	env := make([]string, len(s.env), len(s.env)+3)
+	copy(env, s.env)
+	return append(env,
+		"LICH_PORT="+strconv.Itoa(s.ws.port),
+		"LICH_TOKEN="+s.ws.token,
+		"LICH_SESSION_ID="+id,
+	)
 }
 
 // defaultBin is the Claude Code binary spawned when the user has not configured
@@ -215,7 +242,7 @@ func (s *Service) Start(id, projectID, cwd, kind string, cols, rows int) error {
 
 	cmd := exec.Command(resolveCommand(kind, s.bins.ClaudeBin(projectID), os.Getenv("SHELL")))
 	cmd.Dir = cwd
-	cmd.Env = s.env
+	cmd.Env = s.sessionEnv(id)
 
 	ptmx, err := pty.StartWithSize(cmd, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 	if err != nil {

@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"crypto/subtle"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"sync"
@@ -37,6 +39,13 @@ const (
 	wsReadLimit = 1 << 20
 	// tokenBytes is the size of the random connect token.
 	tokenBytes = 16
+	// hookBodyLimit bounds a status POST from the Claude Code hook; the payload
+	// is a tiny JSON object, so anything larger is malformed or hostile.
+	hookBodyLimit = 4 << 10
+	// statusBusy/statusDone are the only session states the hook may report:
+	// busy while Claude is producing output, done when its turn finishes.
+	statusBusy = "busy"
+	statusDone = "done"
 )
 
 // encodeFrame prefixes payload with the session id. The id must fit one byte
@@ -68,16 +77,18 @@ func decodeFrame(buf []byte) (string, []byte, error) {
 // transport is the local WebSocket endpoint. One client (the webview) is
 // expected; a new connection replaces the previous one.
 type transport struct {
-	mu    sync.Mutex
-	conn  *websocket.Conn
-	port  int
-	token string
-	input func(id string, data []byte)
+	mu     sync.Mutex
+	conn   *websocket.Conn
+	port   int
+	token  string
+	input  func(id string, data []byte)
+	status func(id, state string)
 }
 
 // newTransport starts the listener on a random loopback port. input receives
-// decoded input frames (keyboard data for a session's PTY).
-func newTransport(input func(id string, data []byte)) (*transport, error) {
+// decoded input frames (keyboard data for a session's PTY); status receives a
+// session's processing state reported by the Claude Code hook (see /hook).
+func newTransport(input func(id string, data []byte), status func(id, state string)) (*transport, error) {
 	raw := make([]byte, tokenBytes)
 	if _, err := rand.Read(raw); err != nil {
 		return nil, fmt.Errorf("failed to generate transport token: %w", err)
@@ -87,24 +98,78 @@ func newTransport(input func(id string, data []byte)) (*transport, error) {
 		return nil, fmt.Errorf("failed to listen for transport: %w", err)
 	}
 	t := &transport{
-		port:  listener.Addr().(*net.TCPAddr).Port,
-		token: hex.EncodeToString(raw),
-		input: input,
+		port:   listener.Addr().(*net.TCPAddr).Port,
+		token:  hex.EncodeToString(raw),
+		input:  input,
+		status: status,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", t.handle)
+	mux.HandleFunc("/hook", t.hook)
 	// ponytail: server and listener live for the process lifetime, like the
 	// PTY sessions they serve; add Shutdown if the app ever needs teardown.
 	go func() { _ = http.Serve(listener, mux) }()
 	return t, nil
 }
 
-// handle upgrades the single expected client. The webview's origin is the
-// wails scheme (or the Vite dev server), never this listener's host, so the
-// origin check is skipped — the random token is the auth.
-func (t *transport) handle(w http.ResponseWriter, r *http.Request) {
+// authorized reports whether the request carries the transport's connect token.
+// The webview's origin is the wails scheme (or the Vite dev server), never this
+// listener's host, so the origin is not checked — the random token is the auth.
+func (t *transport) authorized(r *http.Request) bool {
 	provided := r.URL.Query().Get("token")
-	if subtle.ConstantTimeCompare([]byte(provided), []byte(t.token)) != 1 {
+	return subtle.ConstantTimeCompare([]byte(provided), []byte(t.token)) == 1
+}
+
+// hook receives a session status POST from the Claude Code hook running inside a
+// spawned PTY and forwards it to the frontend via the status callback.
+func (t *transport) hook(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !t.authorized(r) {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, hookBodyLimit))
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+	id, state, err := parseHookRequest(body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if t.status != nil {
+		t.status(id, state)
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// parseHookRequest validates a status POST body: a session id and one of the
+// known states. It never trusts the payload — an unknown state is rejected so a
+// stray or hostile POST can't drive the UI into an undefined status.
+func parseHookRequest(body []byte) (id, state string, err error) {
+	var req struct {
+		SessionID string `json:"session_id"`
+		State     string `json:"state"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		return "", "", fmt.Errorf("invalid hook body: %w", err)
+	}
+	if req.SessionID == "" {
+		return "", "", errors.New("hook missing session_id")
+	}
+	if req.State != statusBusy && req.State != statusDone {
+		return "", "", fmt.Errorf("hook has unknown state %q", req.State)
+	}
+	return req.SessionID, req.State, nil
+}
+
+// handle upgrades the single expected client. See authorized for the auth model.
+func (t *transport) handle(w http.ResponseWriter, r *http.Request) {
+	if !t.authorized(r) {
 		http.Error(w, "invalid token", http.StatusUnauthorized)
 		return
 	}

@@ -282,3 +282,36 @@ func TestPTYEcho(t *testing.T) {
 		t.Fatal("timed out reading PTY output")
 	}
 }
+
+// TestSessionEnvInjectsCoordinates proves a spawned PTY gets the loopback
+// coordinates a Claude Code hook needs, without aliasing the shared base env.
+func TestSessionEnvInjectsCoordinates(t *testing.T) {
+	s := &Service{env: []string{"A=1"}, ws: &transport{port: 4321, token: "tok"}}
+	env := s.sessionEnv("sess")
+
+	want := map[string]bool{
+		"A=1":                  true,
+		"LICH_PORT=4321":       true,
+		"LICH_TOKEN=tok":       true,
+		"LICH_SESSION_ID=sess": true,
+	}
+	for _, e := range env {
+		delete(want, e)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing env entries %v (got %v)", want, env)
+	}
+	if len(s.env) != 1 || s.env[0] != "A=1" {
+		t.Fatalf("shared base env was mutated: %v", s.env)
+	}
+}
+
+// TestSessionEnvNoTransport proves that without a transport there is nothing to
+// report to, so the base env is returned unchanged (the hook will no-op).
+func TestSessionEnvNoTransport(t *testing.T) {
+	s := &Service{env: []string{"A=1"}}
+	env := s.sessionEnv("sess")
+	if len(env) != 1 || env[0] != "A=1" {
+		t.Fatalf("expected base env unchanged, got %v", env)
+	}
+}
