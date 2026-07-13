@@ -17,7 +17,6 @@ description: "A personal harness for AI-assisted development"
 vendor: "lich"
 homepage: "https://wails.io"
 license: "MIT"
-release: "1"
 
 contents:
   - src: "./bin/lich"

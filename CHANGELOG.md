@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The Linux Arch package no longer hardcodes `pkgrel` in `nfpm.yaml`. nfpm
+  defaults it to `1`, so the produced `.pkg.tar.zst` version is unchanged
+  (`X.Y.Z-1`) — the field just isn't pinned in the repo anymore. `pkgrel` is
+  mandatory in the Arch package format and has no source in the git tag, so it
+  stays `1` rather than being derived.
+
 ## [0.2.0] - 2026-07-13
 
 ### Added
