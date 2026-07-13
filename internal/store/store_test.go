@@ -215,6 +215,41 @@ func TestRenameAndActivateSession(t *testing.T) {
 	}
 }
 
+// TestSetSessionTitleRespectsManualRename proves the ai-title only sets the
+// label while it is still automatic: it applies to a fresh session, reports
+// that it changed, and no-ops (reporting false) once the user has renamed.
+func TestSetSessionTitleRespectsManualRename(t *testing.T) {
+	svc := newTestStore(t)
+	_ = svc.AddProject("p1", "alpha", "/tmp/alpha")
+	_ = svc.AddSession("p1", "s1", "Session 1", "", "", 2)
+
+	applied, err := svc.SetSessionTitle("s1", "Fixing the auth bug")
+	if err != nil {
+		t.Fatalf("SetSessionTitle: %v", err)
+	}
+	if !applied {
+		t.Fatal("SetSessionTitle on an auto label = false, want true")
+	}
+	if got := mustLoadSessions(t, svc)[0].Label; got != "Fixing the auth bug" {
+		t.Errorf("label = %q, want the title", got)
+	}
+
+	// A user rename clears the auto flag; the next title must not stomp it.
+	if err := svc.RenameSession("s1", "my build"); err != nil {
+		t.Fatalf("RenameSession: %v", err)
+	}
+	applied, err = svc.SetSessionTitle("s1", "A different title")
+	if err != nil {
+		t.Fatalf("SetSessionTitle after rename: %v", err)
+	}
+	if applied {
+		t.Fatal("SetSessionTitle after a manual rename = true, want false")
+	}
+	if got := mustLoadSessions(t, svc)[0].Label; got != "my build" {
+		t.Errorf("manual label was stomped: %q", got)
+	}
+}
+
 func TestDatabasePath(t *testing.T) {
 	t.Setenv("LICH_DEV", "")
 	path, err := databasePath()
@@ -315,6 +350,9 @@ func TestOperationsOnClosedStoreReturnErrors(t *testing.T) {
 	assertErr("RenameSession", svc.RenameSession("s1", "x"))
 	assertErr("SetClaudeSession", svc.SetClaudeSession("s1", "uuid"))
 	assertErr("SetActiveSession", svc.SetActiveSession("p1", "s1"))
+	if _, err := svc.SetSessionTitle("s1", "x"); err == nil {
+		t.Error("SetSessionTitle on closed store = nil error, want error")
+	}
 	assertErr("SetSetting", svc.SetSetting("k", "", "v"))
 
 	if _, err := svc.GetSetting("k", ""); err == nil {

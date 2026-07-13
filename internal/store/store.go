@@ -37,7 +37,8 @@ CREATE TABLE IF NOT EXISTS sessions (
     label             TEXT NOT NULL,
     kind              TEXT NOT NULL DEFAULT 'claude',
     path              TEXT NOT NULL DEFAULT '',
-    claude_session_id TEXT NOT NULL DEFAULT ''
+    claude_session_id TEXT NOT NULL DEFAULT '',
+    label_auto        INTEGER NOT NULL DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_id);
 
@@ -119,6 +120,7 @@ func open(path string) (*Service, error) {
 		`ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'claude'`,
 		`ALTER TABLE sessions ADD COLUMN path TEXT NOT NULL DEFAULT ''`,
 		`ALTER TABLE sessions ADD COLUMN claude_session_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE sessions ADD COLUMN label_auto INTEGER NOT NULL DEFAULT 1`,
 	}
 	for _, stmt := range migrations {
 		if _, err := db.Exec(stmt); err != nil &&

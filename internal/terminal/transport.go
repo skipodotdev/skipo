@@ -11,6 +11,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -84,17 +85,20 @@ type transport struct {
 	input       func(id string, data []byte)
 	status      func(id, state string)
 	linkSession func(sessionID, claudeSessionID string) error
+	setTitle    func(sessionID, title string) error
 }
 
 // newTransport starts the listener on a random loopback port. input receives
 // decoded input frames (keyboard data for a session's PTY); status receives a
 // session's processing state reported by the Claude Code hook (see /hook);
 // linkSession records the Claude session id a PTY reports at start (see
-// /session-start).
+// /session-start); setTitle applies an auto-generated session label (see
+// /session-title).
 func newTransport(
 	input func(id string, data []byte),
 	status func(id, state string),
 	linkSession func(sessionID, claudeSessionID string) error,
+	setTitle func(sessionID, title string) error,
 ) (*transport, error) {
 	raw := make([]byte, tokenBytes)
 	if _, err := rand.Read(raw); err != nil {
@@ -110,11 +114,13 @@ func newTransport(
 		input:       input,
 		status:      status,
 		linkSession: linkSession,
+		setTitle:    setTitle,
 	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/ws", t.handle)
 	mux.HandleFunc("/hook", t.hook)
 	mux.HandleFunc("/session-start", t.sessionStart)
+	mux.HandleFunc("/session-title", t.sessionTitle)
 	// ponytail: server and listener live for the process lifetime, like the
 	// PTY sessions they serve; add Shutdown if the app ever needs teardown.
 	go func() { _ = http.Serve(listener, mux) }()
@@ -225,6 +231,57 @@ func parseSessionStart(body []byte) (id, claudeID string, err error) {
 		return "", "", errors.New("session-start missing claude_session_id")
 	}
 	return req.SessionID, req.ClaudeSessionID, nil
+}
+
+// sessionTitle receives the ai-title POST from the Claude Code hook and applies
+// it as the session's label via the setTitle callback, which no-ops when the
+// user has renamed the session. A store failure is a 500; the hook ignores it.
+func (t *transport) sessionTitle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !t.authorized(r) {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, hookBodyLimit))
+	if err != nil {
+		http.Error(w, "failed to read body", http.StatusBadRequest)
+		return
+	}
+	id, title, err := parseSessionTitle(body)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if t.setTitle != nil {
+		if err := t.setTitle(id, title); err != nil {
+			http.Error(w, "failed to set title", http.StatusInternalServerError)
+			return
+		}
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// parseSessionTitle validates an ai-title POST body: the lich session id and a
+// non-empty title (trimmed, since the hook extracts it from a transcript line).
+func parseSessionTitle(body []byte) (id, title string, err error) {
+	var req struct {
+		SessionID string `json:"session_id"`
+		Title     string `json:"title"`
+	}
+	if err := json.Unmarshal(body, &req); err != nil {
+		return "", "", fmt.Errorf("invalid session-title body: %w", err)
+	}
+	if req.SessionID == "" {
+		return "", "", errors.New("session-title missing session_id")
+	}
+	title = strings.TrimSpace(req.Title)
+	if title == "" {
+		return "", "", errors.New("session-title missing title")
+	}
+	return req.SessionID, title, nil
 }
 
 // handle upgrades the single expected client. See authorized for the auth model.

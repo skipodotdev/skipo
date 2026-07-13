@@ -31,7 +31,18 @@ const (
 	// ("busy"/"done"), reported by the lich hook running inside the PTY (see
 	// transport.hook and integrations/claude-plugin).
 	statusEventPrefix = "session-status:"
+	// titleEventName carries an auto-applied session label ({id, label}).
+	// Unlike the per-session events above, it is a single global event because
+	// the provider that owns session state consumes it centrally, not per card.
+	titleEventName = "session-title"
 )
+
+// titleEvent is the payload of titleEventName: the session whose label changed
+// and its new label.
+type titleEvent struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+}
 
 // session is a single running PTY-backed shell.
 type session struct {
@@ -47,6 +58,7 @@ type session struct {
 type Store interface {
 	ClaudeBin(projectID string) string
 	SetClaudeSession(sessionID, claudeSessionID string) error
+	SetSessionTitle(sessionID, title string) (bool, error)
 }
 
 // Service manages PTY-backed shell sessions keyed by session ID.
@@ -76,6 +88,16 @@ func New(store Store, env []string) *Service {
 		func(id string, data []byte) { _ = s.writeBytes(id, data) },
 		func(id, state string) { application.Get().Event.Emit(statusEventPrefix+id, state) },
 		store.SetClaudeSession,
+		func(id, title string) error {
+			applied, err := store.SetSessionTitle(id, title)
+			if err != nil {
+				return err
+			}
+			if applied {
+				application.Get().Event.Emit(titleEventName, titleEvent{ID: id, Label: title})
+			}
+			return nil
+		},
 	)
 	if err == nil {
 		s.ws = ws

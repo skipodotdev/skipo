@@ -72,7 +72,7 @@ func dial(t *testing.T, tr *transport, token string) (*websocket.Conn, error) {
 }
 
 func TestTransportRejectsBadToken(t *testing.T) {
-	tr, err := newTransport(func(string, []byte) {}, nil, nil)
+	tr, err := newTransport(func(string, []byte) {}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -85,7 +85,7 @@ func TestTransportInputReachesService(t *testing.T) {
 	got := make(chan string, 1)
 	tr, err := newTransport(func(id string, data []byte) {
 		got <- id + ":" + string(data)
-	}, nil, nil)
+	}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestTransportInputReachesService(t *testing.T) {
 }
 
 func TestTransportSendAndFallback(t *testing.T) {
-	tr, err := newTransport(func(string, []byte) {}, nil, nil)
+	tr, err := newTransport(func(string, []byte) {}, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -190,7 +190,7 @@ func TestHookForwardsStatus(t *testing.T) {
 	got := make(chan string, 1)
 	tr, err := newTransport(func(string, []byte) {}, func(id, state string) {
 		got <- id + ":" + state
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -215,7 +215,7 @@ func TestHookForwardsStatus(t *testing.T) {
 
 func TestHookRejectsBadToken(t *testing.T) {
 	fired := make(chan struct{}, 1)
-	tr, err := newTransport(func(string, []byte) {}, func(string, string) { fired <- struct{}{} }, nil)
+	tr, err := newTransport(func(string, []byte) {}, func(string, string) { fired <- struct{}{} }, nil, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestSessionStartLinksSession(t *testing.T) {
 	tr, err := newTransport(func(string, []byte) {}, nil, func(id, claudeID string) error {
 		got <- id + ":" + claudeID
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -302,7 +302,7 @@ func TestSessionStartRejectsBadToken(t *testing.T) {
 	tr, err := newTransport(func(string, []byte) {}, nil, func(string, string) error {
 		fired <- struct{}{}
 		return nil
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("newTransport: %v", err)
 	}
@@ -319,6 +319,95 @@ func TestSessionStartRejectsBadToken(t *testing.T) {
 	select {
 	case <-fired:
 		t.Fatal("link callback fired despite a bad token")
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+func TestParseSessionTitle(t *testing.T) {
+	tests := []struct {
+		name      string
+		body      string
+		wantID    string
+		wantTitle string
+		wantErr   bool
+	}{
+		{"ok", `{"session_id":"s1","title":"Fixing auth"}`, "s1", "Fixing auth", false},
+		{"trims", `{"session_id":"s1","title":"  Fixing auth\n"}`, "s1", "Fixing auth", false},
+		{"missing session id", `{"title":"x"}`, "", "", true},
+		{"missing title", `{"session_id":"s1"}`, "", "", true},
+		{"blank title", `{"session_id":"s1","title":"   "}`, "", "", true},
+		{"bad json", `{`, "", "", true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			id, title, err := parseSessionTitle([]byte(tc.body))
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for %q", tc.body)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if id != tc.wantID || title != tc.wantTitle {
+				t.Fatalf("got (%q,%q), want (%q,%q)", id, title, tc.wantID, tc.wantTitle)
+			}
+		})
+	}
+}
+
+func TestSessionTitleApplies(t *testing.T) {
+	got := make(chan string, 1)
+	tr, err := newTransport(func(string, []byte) {}, nil, nil, func(id, title string) error {
+		got <- id + ":" + title
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("newTransport: %v", err)
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%d/session-title?token=%s", tr.port, tr.token)
+	resp, err := http.Post(url, "application/json",
+		strings.NewReader(`{"session_id":"sess","title":"Fixing auth"}`))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", resp.StatusCode)
+	}
+	select {
+	case v := <-got:
+		if v != "sess:Fixing auth" {
+			t.Fatalf("got %q", v)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("title never reached the callback")
+	}
+}
+
+func TestSessionTitleRejectsBadToken(t *testing.T) {
+	fired := make(chan struct{}, 1)
+	tr, err := newTransport(func(string, []byte) {}, nil, nil, func(string, string) error {
+		fired <- struct{}{}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("newTransport: %v", err)
+	}
+	url := fmt.Sprintf("http://127.0.0.1:%d/session-title?token=wrong", tr.port)
+	resp, err := http.Post(url, "application/json",
+		strings.NewReader(`{"session_id":"s","title":"x"}`))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want 401", resp.StatusCode)
+	}
+	select {
+	case <-fired:
+		t.Fatal("title callback fired despite a bad token")
 	case <-time.After(200 * time.Millisecond):
 	}
 }

@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
+import { Events } from "@wailsio/runtime"
 import { useMatch, useNavigate } from "react-router-dom"
 import {
   Project,
@@ -11,6 +12,7 @@ import {
   activeSessionId,
   addSession,
   closeSession as removeSession,
+  projectOfSession,
   removeProject,
   renameSession as relabelSession,
   sessionsOf,
@@ -56,6 +58,19 @@ const toProject = (p: StoreProject): Project => ({
   path: p.path,
 })
 
+// Global event the backend emits when it auto-applies a session's ai-title as
+// its label (see terminal.titleEventName). Payload: { id, label }.
+const TITLE_EVENT = "session-title"
+
+function isTitleEvent(data: unknown): data is { id: string; label: string } {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    typeof (data as { id?: unknown }).id === "string" &&
+    typeof (data as { label?: unknown }).label === "string"
+  )
+}
+
 // buildSessionState rebuilds the in-memory session map from the persisted
 // projects returned by the store.
 function buildSessionState(loaded: StoreProject[]): SessionState {
@@ -99,6 +114,28 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     void Store.LoadState().then((loaded) => applyLoaded(loaded ?? []))
   }, [applyLoaded])
+
+  // The backend auto-applies the Claude ai-title as a session's label (only
+  // while the user has not renamed it) and emits this event with the change.
+  // Mirror it into local state so the card updates live; the store already
+  // persisted it, so this never writes back.
+  useEffect(() => {
+    const off = Events.On(TITLE_EVENT, (event: { data: unknown }) => {
+      if (!isTitleEvent(event.data)) {
+        return
+      }
+      const { id, label } = event.data
+      const projectId = projectOfSession(sessionsRef.current, id)
+      if (!projectId) {
+        return
+      }
+      const next = relabelSession(sessionsRef.current, projectId, id, label)
+      if (next !== sessionsRef.current) {
+        setSessions(next)
+      }
+    })
+    return () => off()
+  }, [])
 
   const openProject = useCallback(async () => {
     const picked = await ProjectService.Open()

@@ -11,12 +11,13 @@ import (
 )
 
 // stubBins is a Store returning a fixed binary path, for tests that never
-// spawn. Its SetClaudeSession is a no-op — none of these tests exercise the
-// SessionStart path.
+// spawn. Its persistence methods are no-ops — none of these tests exercise the
+// SessionStart or ai-title paths.
 type stubBins struct{ bin string }
 
-func (s stubBins) ClaudeBin(string) string            { return s.bin }
-func (s stubBins) SetClaudeSession(_, _ string) error { return nil }
+func (s stubBins) ClaudeBin(string) string                   { return s.bin }
+func (s stubBins) SetClaudeSession(_, _ string) error        { return nil }
+func (s stubBins) SetSessionTitle(_, _ string) (bool, error) { return false, nil }
 
 // TestChildEnvStripsAppImageVars proves the AppImage runtime variables that break
 // mise/asdf shims are dropped while the real user environment is passed through.

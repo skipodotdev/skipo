@@ -60,3 +60,5 @@ stays safe to install globally.
   (`busy`/`done`) shown on its card.
 - [session-start.md](session-start.md) — the Claude session id, persisted
   against the lich session for later features.
+- [session-title.md](session-title.md) — Claude's auto-generated `ai-title`,
+  applied as the session card's label.
