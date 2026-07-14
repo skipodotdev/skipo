@@ -6,14 +6,17 @@ package project
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -65,6 +68,44 @@ func (s *Service) Branch(path string) string {
 		return ""
 	}
 	return strings.TrimSpace(string(out))
+}
+
+// PullRequest identifies the open GitHub pull request for a work tree's current
+// branch, as reported by the gh CLI.
+type PullRequest struct {
+	Number int    `json:"number"`
+	URL    string `json:"url"`
+}
+
+// prLookupTimeout caps the gh network call so a slow forge or hung auth prompt
+// never stalls the footer poll.
+const prLookupTimeout = 5 * time.Second
+
+// PullRequest returns the open pull request for the path's current branch, or nil
+// when there is none, gh is missing/unauthenticated, or the path is not a GitHub
+// repo. It shells out to `gh pr view`, which resolves the PR from the checked-out
+// branch. Any failure yields nil, matching Branch's "hide the segment" contract.
+func (s *Service) PullRequest(path string) *PullRequest {
+	ctx, cancel := context.WithTimeout(context.Background(), prLookupTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "gh", "pr", "view", "--json", "number,url")
+	cmd.Dir = path
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	return parsePullRequest(out)
+}
+
+// parsePullRequest decodes gh's `pr view --json` output. It returns nil for
+// malformed JSON or a zero PR number (gh emits `{}` in some no-PR states), so a
+// bad payload hides the badge rather than showing "PR #0".
+func parsePullRequest(out []byte) *PullRequest {
+	var pr PullRequest
+	if err := json.Unmarshal(out, &pr); err != nil || pr.Number == 0 || pr.URL == "" {
+		return nil
+	}
+	return &pr
 }
 
 // PickFile shows the native file picker and returns the chosen file path, or ""
