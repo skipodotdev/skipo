@@ -43,10 +43,13 @@ const (
 	// hookBodyLimit bounds a status POST from the Claude Code hook; the payload
 	// is a tiny JSON object, so anything larger is malformed or hostile.
 	hookBodyLimit = 4 << 10
-	// statusBusy/statusDone are the only session states the hook may report:
-	// busy while Claude is producing output, done when its turn finishes.
-	statusBusy = "busy"
-	statusDone = "done"
+	// statusBusy/statusDone/statusWaiting are the only session states the hook
+	// may report: busy while Claude is producing output, done when its turn
+	// finishes, waiting when Claude is blocked on the user (a permission prompt
+	// or an idle input request, from the Notification hook).
+	statusBusy    = "busy"
+	statusDone    = "done"
+	statusWaiting = "waiting"
 )
 
 // encodeFrame prefixes payload with the session id. The id must fit one byte
@@ -176,7 +179,7 @@ func parseHookRequest(body []byte) (id, state string, err error) {
 	if req.SessionID == "" {
 		return "", "", errors.New("hook missing session_id")
 	}
-	if req.State != statusBusy && req.State != statusDone {
+	if req.State != statusBusy && req.State != statusDone && req.State != statusWaiting {
 		return "", "", fmt.Errorf("hook has unknown state %q", req.State)
 	}
 	return req.SessionID, req.State, nil

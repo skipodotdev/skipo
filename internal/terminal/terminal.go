@@ -35,6 +35,11 @@ const (
 	// Unlike the per-session events above, it is a single global event because
 	// the provider that owns session state consumes it centrally, not per card.
 	titleEventName = "session-title"
+	// attentionEventName carries the id of a session that just needs the user
+	// (state "waiting"). It is global so the provider can toast and route to the
+	// card even when that session lives in a background project whose card is not
+	// mounted — the per-session status event alone cannot reach an unmounted card.
+	attentionEventName = "session-attention"
 )
 
 // titleEvent is the payload of titleEventName: the session whose label changed
@@ -42,6 +47,12 @@ const (
 type titleEvent struct {
 	ID    string `json:"id"`
 	Label string `json:"label"`
+}
+
+// attentionEvent is the payload of attentionEventName: the session needing the
+// user.
+type attentionEvent struct {
+	ID string `json:"id"`
 }
 
 // session is a single running PTY-backed shell.
@@ -86,7 +97,12 @@ func New(store Store, env []string) *Service {
 	}
 	ws, err := newTransport(
 		func(id string, data []byte) { _ = s.writeBytes(id, data) },
-		func(id, state string) { application.Get().Event.Emit(statusEventPrefix+id, state) },
+		func(id, state string) {
+			application.Get().Event.Emit(statusEventPrefix+id, state)
+			if state == statusWaiting {
+				application.Get().Event.Emit(attentionEventName, attentionEvent{ID: id})
+			}
+		},
 		store.SetClaudeSession,
 		func(id, title string) error {
 			applied, err := store.SetSessionTitle(id, title)

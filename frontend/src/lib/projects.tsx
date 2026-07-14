@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { Events } from "@wailsio/runtime"
+import { toast } from "sonner"
 import { useMatch, useNavigate } from "react-router-dom"
 import {
   Project,
@@ -71,6 +72,22 @@ function isTitleEvent(data: unknown): data is { id: string; label: string } {
   )
 }
 
+// Global event the backend emits when a session needs the user — a permission
+// prompt or an idle input request (see terminal.attentionEventName). Payload:
+// { id }. Drives the actionable toast that routes to the card.
+const ATTENTION_EVENT = "session-attention"
+
+// How long the "needs you" toast stays before auto-dismissing.
+const ATTENTION_TOAST_MS = 10_000
+
+function isAttentionEvent(data: unknown): data is { id: string } {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    typeof (data as { id?: unknown }).id === "string"
+  )
+}
+
 // buildSessionState rebuilds the in-memory session map from the persisted
 // projects returned by the store.
 function buildSessionState(loaded: StoreProject[]): SessionState {
@@ -103,6 +120,10 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
   sessionsRef.current = sessions
   const navigate = useNavigate()
   const activeProjectId = useMatch("/projects/:projectId")?.params.projectId
+  // Latest focused project id for the attention toast, read inside a once-only
+  // event subscription without re-subscribing on every navigation.
+  const activeProjectIdRef = useRef(activeProjectId)
+  activeProjectIdRef.current = activeProjectId
   const { hotkeys } = useSettings()
 
   const applyLoaded = useCallback((loaded: StoreProject[]) => {
@@ -245,6 +266,39 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     setSessions(next)
     void Store.SetActiveSession(projectId, sessionId)
   }, [])
+
+  // A session that needs the user (permission prompt or idle input) raises a
+  // global toast that routes to its card — reachable even when the session lives
+  // in a background project whose card is not mounted. Skipped for the session
+  // already in focus, where the terminal itself shows the prompt.
+  useEffect(() => {
+    const off = Events.On(ATTENTION_EVENT, (event: { data: unknown }) => {
+      if (!isAttentionEvent(event.data)) {
+        return
+      }
+      const { id } = event.data
+      const projectId = projectOfSession(sessionsRef.current, id)
+      if (!projectId) {
+        return
+      }
+      const project = sessionsRef.current[projectId]
+      if (projectId === activeProjectIdRef.current && project?.activeId === id) {
+        return
+      }
+      const label = project?.sessions.find((s) => s.id === id)?.label ?? "A session"
+      toast(`${label} needs your input`, {
+        duration: ATTENTION_TOAST_MS,
+        action: {
+          label: "Open",
+          onClick: () => {
+            navigate(`/projects/${projectId}`)
+            activateSession(projectId, id)
+          },
+        },
+      })
+    })
+    return () => off()
+  }, [navigate, activateSession])
 
   const renameSession = useCallback(
     (projectId: string, sessionId: string, label: string) => {

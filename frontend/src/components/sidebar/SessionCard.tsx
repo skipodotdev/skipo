@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from "react"
 import type {KeyboardEvent} from "react"
 import {Events} from "@wailsio/runtime"
-import {Check, GitBranch, LoaderCircle, Pencil, X} from "lucide-react"
+import {Bell, Check, GitBranch, LoaderCircle, Pencil, X} from "lucide-react"
 import {cn} from "@/lib/utils"
 import {displayPath} from "@/lib/paths"
 import {type Session} from "@/lib/sessions"
@@ -24,8 +24,9 @@ interface SessionCardProps {
 }
 
 // Processing state reported by the lich Claude Code hook: a spinner while Claude
-// produces output, a check once its turn ends. null before the first report.
-type SessionStatus = "busy" | "done" | null
+// produces output, a check once its turn ends, a bell when it is blocked on the
+// user (permission prompt or idle input). null before the first report.
+type SessionStatus = "busy" | "done" | "waiting" | null
 const STATUS_EVENT_PREFIX = "session-status:"
 
 // SessionCard is one session entry: a card showing the session label, the
@@ -72,7 +73,9 @@ export function SessionCard({
   useEffect(() => {
     const off = Events.On(STATUS_EVENT_PREFIX + session.id, (event: {data: unknown}) => {
       const next = event.data
-      setStatus(next === "busy" || next === "done" ? next : null)
+      setStatus(
+        next === "busy" || next === "done" || next === "waiting" ? next : null,
+      )
     })
     return () => off()
   }, [session.id])
@@ -127,6 +130,9 @@ export function SessionCard({
                 )}
                 {status === "done" && (
                   <Check className="size-3 shrink-0 text-emerald-500"/>
+                )}
+                {status === "waiting" && (
+                  <Bell className="size-3 shrink-0 text-amber-500"/>
                 )}
                 <span className="truncate text-sm font-medium text-foreground">
                   {session.label}
