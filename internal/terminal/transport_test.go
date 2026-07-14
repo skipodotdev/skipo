@@ -3,6 +3,7 @@ package terminal
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -171,7 +172,7 @@ func TestParseHookRequest(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			id, state, err := parseHookRequest([]byte(tc.body))
+			req, err := parseHookRequest([]byte(tc.body))
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error for %q", tc.body)
@@ -181,8 +182,8 @@ func TestParseHookRequest(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if id != tc.wantID || state != tc.wantState {
-				t.Fatalf("got (%q,%q), want (%q,%q)", id, state, tc.wantID, tc.wantState)
+			if req.SessionID != tc.wantID || req.State != tc.wantState {
+				t.Fatalf("got (%q,%q), want (%q,%q)", req.SessionID, req.State, tc.wantID, tc.wantState)
 			}
 		})
 	}
@@ -253,7 +254,7 @@ func TestParseSessionStart(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			id, claudeID, err := parseSessionStart([]byte(tc.body))
+			req, err := parseSessionStart([]byte(tc.body))
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error for %q", tc.body)
@@ -263,8 +264,9 @@ func TestParseSessionStart(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if id != tc.wantID || claudeID != tc.wantClaudeID {
-				t.Fatalf("got (%q,%q), want (%q,%q)", id, claudeID, tc.wantID, tc.wantClaudeID)
+			if req.SessionID != tc.wantID || req.ClaudeSessionID != tc.wantClaudeID {
+				t.Fatalf("got (%q,%q), want (%q,%q)",
+					req.SessionID, req.ClaudeSessionID, tc.wantID, tc.wantClaudeID)
 			}
 		})
 	}
@@ -342,7 +344,7 @@ func TestParseSessionTitle(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			id, title, err := parseSessionTitle([]byte(tc.body))
+			req, err := parseSessionTitle([]byte(tc.body))
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expected error for %q", tc.body)
@@ -352,8 +354,8 @@ func TestParseSessionTitle(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
-			if id != tc.wantID || title != tc.wantTitle {
-				t.Fatalf("got (%q,%q), want (%q,%q)", id, title, tc.wantID, tc.wantTitle)
+			if req.SessionID != tc.wantID || req.Title != tc.wantTitle {
+				t.Fatalf("got (%q,%q), want (%q,%q)", req.SessionID, req.Title, tc.wantID, tc.wantTitle)
 			}
 		})
 	}
@@ -415,8 +417,8 @@ func TestSessionTitleRejectsBadToken(t *testing.T) {
 }
 
 func TestParseSessionTouched(t *testing.T) {
-	if id, err := parseSessionTouched([]byte(`{"session_id":"s1"}`)); err != nil || id != "s1" {
-		t.Fatalf("got (%q,%v), want (s1,nil)", id, err)
+	if req, err := parseSessionTouched([]byte(`{"session_id":"s1"}`)); err != nil || req.SessionID != "s1" {
+		t.Fatalf("got (%q,%v), want (s1,nil)", req.SessionID, err)
 	}
 	if _, err := parseSessionTouched([]byte(`{}`)); err == nil {
 		t.Fatal("expected error for missing session_id")
@@ -473,6 +475,158 @@ func TestSessionTouchedRejectsBadToken(t *testing.T) {
 	select {
 	case <-fired:
 		t.Fatal("touched callback fired despite a bad token")
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+// hookEndpoints is every hook endpoint paired with a body that parses cleanly.
+// They all share servePost, so the failure modes it owns are proved once across
+// the whole set instead of once per handler.
+var hookEndpoints = []struct {
+	path string
+	body string
+}{
+	{"/hook", `{"session_id":"s","state":"busy"}`},
+	{"/session-start", `{"session_id":"s","claude_session_id":"u"}`},
+	{"/session-title", `{"session_id":"s","title":"t"}`},
+	{"/session-touched", `{"session_id":"s"}`},
+}
+
+// newNilTransport starts a transport with every hook callback unset, the state
+// the app is in when a POST lands before the callbacks matter.
+func newNilTransport(t *testing.T) *transport {
+	t.Helper()
+	tr, err := newTransport(func(string, []byte) {}, nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("newTransport: %v", err)
+	}
+	return tr
+}
+
+func TestHookEndpointsRejectNonPost(t *testing.T) {
+	tr := newNilTransport(t)
+	for _, e := range hookEndpoints {
+		t.Run(e.path, func(t *testing.T) {
+			resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d%s?token=%s", tr.port, e.path, tr.token))
+			if err != nil {
+				t.Fatalf("get: %v", err)
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusMethodNotAllowed {
+				t.Fatalf("status = %d, want 405", resp.StatusCode)
+			}
+		})
+	}
+}
+
+func TestHookEndpointsRejectInvalidJSON(t *testing.T) {
+	tr := newNilTransport(t)
+	for _, e := range hookEndpoints {
+		t.Run(e.path, func(t *testing.T) {
+			url := fmt.Sprintf("http://127.0.0.1:%d%s?token=%s", tr.port, e.path, tr.token)
+			resp, err := http.Post(url, "application/json", strings.NewReader(`{`))
+			if err != nil {
+				t.Fatalf("post: %v", err)
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusBadRequest {
+				t.Fatalf("status = %d, want 400", resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestHookEndpointsWithNilCallbacks proves a valid POST is still accepted when
+// nothing is wired to receive it — the hook must never see an error for a
+// report lich simply has no use for.
+func TestHookEndpointsWithNilCallbacks(t *testing.T) {
+	tr := newNilTransport(t)
+	for _, e := range hookEndpoints {
+		t.Run(e.path, func(t *testing.T) {
+			url := fmt.Sprintf("http://127.0.0.1:%d%s?token=%s", tr.port, e.path, tr.token)
+			resp, err := http.Post(url, "application/json", strings.NewReader(e.body))
+			if err != nil {
+				t.Fatalf("post: %v", err)
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusNoContent {
+				t.Fatalf("status = %d, want 204", resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestStoreFailuresReport500 proves a persistence error reaches the response
+// rather than being swallowed. These are the only two hooks that write, and the
+// 500 is the sole signal that the write was lost.
+func TestStoreFailuresReport500(t *testing.T) {
+	boom := errors.New("store is down")
+	tests := []struct {
+		name string
+		path string
+		body string
+		tr   func() (*transport, error)
+	}{
+		{
+			name: "session-start link failure",
+			path: "/session-start",
+			body: `{"session_id":"s","claude_session_id":"u"}`,
+			tr: func() (*transport, error) {
+				return newTransport(func(string, []byte) {}, nil,
+					func(string, string) error { return boom }, nil, nil)
+			},
+		},
+		{
+			name: "session-title store failure",
+			path: "/session-title",
+			body: `{"session_id":"s","title":"t"}`,
+			tr: func() (*transport, error) {
+				return newTransport(func(string, []byte) {}, nil, nil,
+					func(string, string) error { return boom }, nil)
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			tr, err := tc.tr()
+			if err != nil {
+				t.Fatalf("newTransport: %v", err)
+			}
+			url := fmt.Sprintf("http://127.0.0.1:%d%s?token=%s", tr.port, tc.path, tr.token)
+			resp, err := http.Post(url, "application/json", strings.NewReader(tc.body))
+			if err != nil {
+				t.Fatalf("post: %v", err)
+			}
+			_ = resp.Body.Close()
+			if resp.StatusCode != http.StatusInternalServerError {
+				t.Fatalf("status = %d, want 500", resp.StatusCode)
+			}
+		})
+	}
+}
+
+// TestHookBodyLimit proves an oversized body is truncated rather than read into
+// memory: the JSON is valid but padded past hookBodyLimit, so the cut lands
+// mid-document and the parse fails. Without the limit this would be a 204.
+func TestHookBodyLimit(t *testing.T) {
+	fired := make(chan struct{}, 1)
+	tr, err := newTransport(func(string, []byte) {}, func(string, string) { fired <- struct{}{} }, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("newTransport: %v", err)
+	}
+	padded := fmt.Sprintf(`{"pad":%q,"session_id":"s","state":"busy"}`, strings.Repeat("x", hookBodyLimit))
+	url := fmt.Sprintf("http://127.0.0.1:%d/hook?token=%s", tr.port, tr.token)
+	resp, err := http.Post(url, "application/json", strings.NewReader(padded))
+	if err != nil {
+		t.Fatalf("post: %v", err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400 (body should be cut mid-JSON)", resp.StatusCode)
+	}
+	select {
+	case <-fired:
+		t.Fatal("status callback fired on an oversized body")
 	case <-time.After(200 * time.Millisecond):
 	}
 }
