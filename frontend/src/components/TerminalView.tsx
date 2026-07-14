@@ -12,6 +12,7 @@ import { patchScrollGate, patchScrollbackCache } from "@/lib/scrollback-perf"
 import { ensureTransport, onSessionData, sendInput } from "@/lib/term-transport"
 import { registerLinkOpening } from "@/lib/term-links"
 import { pauseRenderLoop, resumeRenderLoop } from "@/lib/render-pause"
+import { releaseCanvasBacking } from "@/lib/hidden-canvas"
 import { patchRowPaint } from "@/lib/row-paint"
 import {
   altScreenWheelSequence,
@@ -342,6 +343,7 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
         // Navigated away while the WASM init was in flight: the session starts
         // visible on the backend, so demote it and stop painting.
         pauseRenderLoop(term)
+        releaseCanvasBacking(term)
         void Service.SetVisible(sessionId, false)
       }
     })()
@@ -373,6 +375,10 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
       }
       if (visibleRef.current) {
         void Service.Resize(sessionId, term.cols, term.rows)
+      } else {
+        // fitTerminal above may have reallocated the canvas at full size;
+        // hidden sessions must not keep a backing store.
+        releaseCanvasBacking(term)
       }
     })()
   }, [font, sessionId])
@@ -383,10 +389,11 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
   }, [resolvedTerminalTheme])
 
   // Visibility drives the cost of a terminal. Hidden: stop the ~60fps render
-  // loop (writes keep updating the WASM buffer, so state stays current) and let
-  // the backend batch output events. Visible: resume rendering, flush batched
-  // output, refit (window may have resized while hidden), sync the PTY size and
-  // focus.
+  // loop (writes keep updating the WASM buffer, so state stays current),
+  // release the canvas backing store (several MB per session; ghostty's render
+  // self-heals the size on show) and let the backend batch output events.
+  // Visible: resume rendering, flush batched output, refit (window may have
+  // resized while hidden), sync the PTY size and focus.
   useEffect(() => {
     const term = termRef.current
     if (!term) {
@@ -394,6 +401,7 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
     }
     if (!visible) {
       pauseRenderLoop(term)
+      releaseCanvasBacking(term)
       void Service.SetVisible(sessionId, false)
       return
     }

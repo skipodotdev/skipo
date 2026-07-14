@@ -105,8 +105,11 @@ Deliberate limits and shortcuts, with the upgrade path when it matters:
   another's sidebar. dnd-kit only listens to pointer events and animates with CSS transforms, so the DOM order never
   changes mid-drag and no preview state exists to strand. `PointerSensor` needs its `activationConstraint.distance`
   (`frontend/src/lib/use-sortable-list.ts`) or the sensor claims the press and plain clicks stop selecting a session.
-- **Webview RAM is ~1GB with 20+ sessions** (canvas + WASM buffer + 5000-line scrollback each). If it hurts: shrink
-  hidden-session canvases or reduce scrollback.
+- **Webview RAM is dominated by WASM buffers + 5000-line scrollback with 20+ sessions.** Hidden sessions release their
+  canvas backing store (`frontend/src/lib/hidden-canvas.ts` — public `getCanvas()`, restore rides ghostty-web `render()`
+  self-healing a size mismatch into a full resize + redraw; `patchScrollGate` never skips while the canvas is empty). If
+  RAM still hurts: reduce scrollback, or go waveterm-style — serialize hidden terminals and destroy them, replaying a
+  backend-kept tail on show.
 - **The AppImage runs with the WebKit sandbox disabled** (`WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1` in its AppRun).
   WebKitGTK is not relocatable: helper/bwrap paths are baked at compile time, so
   `build/linux/appimage/fix-appimage.sh` binary-patches `libwebkit*` (`/usr` → `././`), fixes the helpers' exec bits

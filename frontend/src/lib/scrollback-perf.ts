@@ -7,7 +7,8 @@
 //
 // - patchScrollGate: skip render() while scrolled when nothing changed
 //   (same viewportY/opacity/theme, no WASM dirty state, no pending selection
-//   or hover repaint). Static reading drops to ~0 paints.
+//   or hover repaint, canvas backing store present — see hidden-canvas.ts).
+//   Static reading drops to ~0 paints.
 // - patchScrollbackCache: memoize getScrollbackLine rows. History is
 //   immutable until the terminal writes (buffer append/eviction shifts
 //   indices) or resizes (reflow), so both are wrapped to invalidate.
@@ -28,6 +29,7 @@ interface GateRenderer {
   hoveredLinkRange: unknown
   previousHoveredLinkRange: unknown
   selectionManager?: { getDirtySelectionRows(): Set<number> } | null
+  getCanvas?: () => { width: number; height: number } | null
   render(
     buffer: GateBuffer,
     force?: boolean,
@@ -35,6 +37,17 @@ interface GateRenderer {
     provider?: unknown,
     opacity?: number,
   ): void
+}
+
+// An empty canvas means the backing store was released while the session was
+// hidden (hidden-canvas.ts); render() must run so its size self-heal repaints.
+// Renderers without getCanvas are treated as never empty (gate as before).
+function canvasEmpty(renderer: GateRenderer): boolean {
+  if (typeof renderer.getCanvas !== "function") {
+    return false
+  }
+  const canvas = renderer.getCanvas()
+  return canvas != null && (canvas.width === 0 || canvas.height === 0)
 }
 
 export function patchScrollGate(renderer: unknown): void {
@@ -58,7 +71,8 @@ export function patchScrollGate(renderer: unknown): void {
         target.theme === lastTheme &&
         hoverSynced &&
         selectionClean &&
-        !buffer.isDirty()
+        !buffer.isDirty() &&
+        !canvasEmpty(target)
       ) {
         return
       }

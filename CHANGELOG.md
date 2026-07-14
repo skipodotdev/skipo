@@ -20,6 +20,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Diff counters (+added/−deleted) now use one palette everywhere: green for
   additions, red for deletions. Session cards and the footer previously showed
   them in blue/pink while the review panel used green/red.
+- Hidden sessions no longer hold a canvas backing store (several MB each at
+  window size). The bitmap is released when a session leaves the screen and
+  transparently reallocated on the next paint when it returns, cutting webview
+  memory with many open sessions.
 
 ## [0.3.0] - 2026-07-14
 

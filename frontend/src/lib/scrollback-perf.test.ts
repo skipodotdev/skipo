@@ -80,6 +80,28 @@ describe("patchScrollGate", () => {
     r.render(r.buffer, false, 5, null, 1)
     expect(r.paints).toBe(2)
   })
+
+  it("never skips while the canvas backing store is released", () => {
+    const canvas = {width: 0, height: 0}
+    const r = {...makeRenderer(), getCanvas: () => canvas}
+    patchScrollGate(r)
+    r.render(r.buffer, false, 5, null, 1)
+    r.render(r.buffer, false, 5, null, 1)
+    expect(r.paints).toBe(2)
+    // Backing store restored (render's self-heal): gate resumes skipping.
+    canvas.width = 800
+    canvas.height = 600
+    r.render(r.buffer, false, 5, null, 1)
+    expect(r.paints).toBe(2)
+  })
+
+  it("gates normally when the renderer exposes no getCanvas", () => {
+    const r = makeRenderer()
+    patchScrollGate(r)
+    r.render(r.buffer, false, 5, null, 1)
+    r.render(r.buffer, false, 5, null, 1)
+    expect(r.paints).toBe(1)
+  })
 })
 
 function makeTerm() {
