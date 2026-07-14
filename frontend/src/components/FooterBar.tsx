@@ -1,12 +1,14 @@
 import {useEffect, useState} from "react"
 import {useMatch} from "react-router-dom"
-import {FileText, GitBranch, Folder, Plus, Diff} from "lucide-react"
+import {Browser} from "@wailsio/runtime"
+import {FileText, GitBranch, Folder, Plus, Diff, GitPullRequestArrow} from "lucide-react"
 import {Service as ProjectService} from "../../bindings/github.com/omartelo/lich/internal/project"
 import {Service as TerminalService} from "../../bindings/github.com/omartelo/lich/internal/terminal"
 import {useProjects} from "@/lib/projects"
 import {activeSessionId, sessionsOf} from "@/lib/sessions"
 import {displayPath} from "@/lib/paths"
 import {useGitStatus} from "@/lib/useGitStatus"
+import {usePullRequest} from "@/lib/usePullRequest"
 import {
   Tooltip,
   TooltipContent,
@@ -47,6 +49,7 @@ export function FooterBar({diffOpen, onToggleDiff}: FooterBarProps) {
     : undefined
   const path = session?.path || projectPath
   const status = useGitStatus(path)
+  const pr = usePullRequest(path, status?.branch ?? "")
   const now = useNow()
 
   const attachFile = async () => {
@@ -67,7 +70,7 @@ export function FooterBar({diffOpen, onToggleDiff}: FooterBarProps) {
               onClick={() => void attachFile()}
               disabled={!sessionId}
               aria-label="Attach file"
-              className="flex size-6 items-center justify-center rounded-md border border-border bg-muted text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40"
+              className="flex items-center justify-center rounded-md border border-border bg-muted p-1 text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40"
             />
           }
         >
@@ -106,6 +109,23 @@ export function FooterBar({diffOpen, onToggleDiff}: FooterBarProps) {
             )}
           </TooltipTrigger>
           <TooltipContent>Review changes</TooltipContent>
+        </Tooltip>
+      )}
+
+      {pr && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <button
+                type="button"
+                onClick={() => void Browser.OpenURL(pr.url)}
+                className="flex items-center gap-1.5 rounded-md border border-border bg-muted px-1.5 py-1 transition-colors hover:bg-accent hover:text-accent-foreground"
+              />
+            }
+          >
+            <GitPullRequestArrow className="size-3.5"/> PR #{pr.number}
+          </TooltipTrigger>
+          <TooltipContent>Open pull request on GitHub</TooltipContent>
         </Tooltip>
       )}
 

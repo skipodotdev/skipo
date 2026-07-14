@@ -57,6 +57,35 @@ func TestBranch(t *testing.T) {
 	}
 }
 
+// TestParsePullRequest proves the gh output decoder: a real PR yields its number
+// and URL, while malformed JSON, an empty object, and a PR missing its number or
+// URL all collapse to nil so the badge hides instead of showing garbage.
+func TestParsePullRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		out  string
+		want *PullRequest
+	}{
+		{"valid", `{"number":7,"url":"https://github.com/o/r/pull/7"}`, &PullRequest{Number: 7, URL: "https://github.com/o/r/pull/7"}},
+		{"empty object", `{}`, nil},
+		{"zero number", `{"number":0,"url":"https://github.com/o/r/pull/0"}`, nil},
+		{"missing url", `{"number":7}`, nil},
+		{"malformed", `not json`, nil},
+		{"empty bytes", ``, nil},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := parsePullRequest([]byte(tt.out))
+			switch {
+			case tt.want == nil && got != nil:
+				t.Errorf("parsePullRequest(%q) = %+v, want nil", tt.out, got)
+			case tt.want != nil && (got == nil || *got != *tt.want):
+				t.Errorf("parsePullRequest(%q) = %+v, want %+v", tt.out, got, tt.want)
+			}
+		})
+	}
+}
+
 // TestDiff proves Diff counts dirty files and added/deleted lines against HEAD,
 // and returns the zero value for clean repositories and non-repositories.
 func TestDiff(t *testing.T) {
