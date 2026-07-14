@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 import { Service as Store } from "../../../bindings/github.com/omartelo/lich/internal/store"
 import { useProjects } from "@/lib/projects"
+import { Input } from "@/components/ui/input"
 import { SettingBlock } from "./SettingBlock"
 
 // Same key as the global section; the scope (project id) is what differs. An
@@ -46,13 +47,13 @@ export function ProjectClaudeCodeSettings() {
           <div key={project.id}>
             <div className="text-sm font-medium text-foreground">{project.name}</div>
             <p className="mb-2 mt-0.5 text-xs text-muted-foreground">{project.path}</p>
-            <input
+            <Input
               value={bins[project.id] ?? ""}
               onChange={(event) => persist(project.id, event.target.value)}
               placeholder={globalBin || "claude"}
               spellCheck={false}
               aria-label={`Claude Code path for ${project.name}`}
-              className="h-9 w-96 max-w-full rounded-md border border-border bg-background px-3 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-96 max-w-full font-mono"
             />
           </div>
         ))}

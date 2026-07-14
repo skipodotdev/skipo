@@ -16,7 +16,7 @@ import {
 import {Input} from "@/components/ui/input"
 import {Label} from "@/components/ui/label"
 import {isValidBranchName} from "@/lib/branch-name"
-import {cn} from "@/lib/utils"
+import {cn, errorText} from "@/lib/utils"
 
 interface WorktreeDialogProps {
   open: boolean
@@ -38,9 +38,6 @@ const splitValue = (value: string): [string, string] => {
   const sep = value.indexOf(":")
   return [value.slice(0, sep), value.slice(sep + 1)]
 }
-
-const errorText = (err: unknown): string =>
-  err instanceof Error ? err.message : String(err)
 
 type GroupKey = "worktrees" | "local" | "remote"
 

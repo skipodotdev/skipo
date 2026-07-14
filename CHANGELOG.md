@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Reordering also works from the keyboard: focus a card or tab, then Space and
   the arrow keys.
 
+### Changed
+
+- Diff counters (+added/−deleted) now use one palette everywhere: green for
+  additions, red for deletions. Session cards and the footer previously showed
+  them in blue/pink while the review panel used green/red.
+
 ## [0.3.0] - 2026-07-14
 
 ### Added

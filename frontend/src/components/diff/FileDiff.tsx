@@ -20,6 +20,7 @@ import {
   type NewLineRange,
 } from "@/lib/diff"
 import {languageAbbr, splitPath} from "@/lib/lang-badge"
+import {DiffStat} from "@/components/DiffStat"
 import {useDiffEditor} from "./useDiffEditor"
 
 // Files whose rendered diff exceeds this many lines start collapsed, so one
@@ -72,12 +73,7 @@ export function FileDiff({file, onInject, onDiscard}: FileDiffProps) {
           )}
         </button>
         <span className="flex shrink-0 items-center gap-1.5">
-          <span className="font-medium text-emerald-600 dark:text-emerald-400">
-            +{file.added}
-          </span>
-          <span className="font-medium text-red-600 dark:text-red-400">
-            -{file.deleted}
-          </span>
+          <DiffStat added={file.added} deleted={file.deleted}/>
         </span>
         <HeaderAction label="Add file as context" onClick={() => onInject(`@${file.newPath} `)}>
           <Paperclip className="size-3.5"/>

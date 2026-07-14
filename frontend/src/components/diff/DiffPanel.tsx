@@ -1,14 +1,15 @@
 import {useCallback, useEffect, useState} from "react"
-import {useMatch} from "react-router-dom"
 import {Maximize2, Minimize2, X} from "lucide-react"
 import {toast} from "sonner"
 import {Service as ProjectService} from "../../../bindings/github.com/omartelo/lich/internal/project"
 import {Service as TerminalService} from "../../../bindings/github.com/omartelo/lich/internal/terminal"
-import {useProjects} from "@/lib/projects"
-import {activeSessionId, sessionsOf} from "@/lib/sessions"
+import {Button} from "@/components/ui/button"
+import {useActiveSession} from "@/lib/useActiveSession"
 import {discardTargets, parseDiff, type DiffFile} from "@/lib/diff"
 import {useGitStatus} from "@/lib/useGitStatus"
 import {usePanelWidth} from "@/lib/use-panel-width"
+import {errorText} from "@/lib/utils"
+import {DiffStat} from "@/components/DiffStat"
 import {DiscardDialog} from "./DiscardDialog"
 import {FileDiff, HeaderAction} from "./FileDiff"
 
@@ -22,15 +23,7 @@ interface DiffPanelProps {
 // attach-file button. It follows the active session like the footer does: a
 // worktree session reviews its checkout, not the project root.
 export function DiffPanel({onClose}: DiffPanelProps) {
-  const {projects, sessions} = useProjects()
-  const match = useMatch("/projects/:projectId")
-  const projectId = match?.params.projectId ?? null
-  const projectPath = projects.find((p) => p.id === projectId)?.path ?? ""
-  const sessionId = projectId ? activeSessionId(sessions, projectId) : ""
-  const session = projectId
-    ? sessionsOf(sessions, projectId).find((s) => s.id === sessionId)
-    : undefined
-  const path = session?.path || projectPath
+  const {projectId, sessionId, path} = useActiveSession()
   const status = useGitStatus(path)
   const [files, setFiles] = useState<DiffFile[] | null>(null)
   const [failed, setFailed] = useState(false)
@@ -88,9 +81,7 @@ export function DiffPanel({onClose}: DiffPanelProps) {
         await ProjectService.DiscardFile(path, rel)
       }
     } catch (err: unknown) {
-      toast.error(
-        `Failed to discard changes: ${err instanceof Error ? err.message : String(err)}`,
-      )
+      toast.error(`Failed to discard changes: ${errorText(err)}`)
     }
     void refresh()
   }
@@ -111,12 +102,7 @@ export function DiffPanel({onClose}: DiffPanelProps) {
         </span>
         {status && status.files > 0 && (
           <span className="flex items-center gap-1.5">
-            <span className="font-medium text-emerald-600 dark:text-emerald-400">
-              +{status.added}
-            </span>
-            <span className="font-medium text-red-600 dark:text-red-400">
-              -{status.deleted}
-            </span>
+            <DiffStat added={status.added} deleted={status.deleted}/>
           </span>
         )}
         <span className="ml-auto flex items-center gap-1">
@@ -130,14 +116,15 @@ export function DiffPanel({onClose}: DiffPanelProps) {
               <Maximize2 className="size-3.5"/>
             )}
           </HeaderAction>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon-xs"
             onClick={onClose}
             aria-label="Close review panel"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            className="text-muted-foreground"
           >
             <X className="size-4"/>
-          </button>
+          </Button>
         </span>
       </div>
       <div className="flex-1 overflow-y-auto">

@@ -1,12 +1,5 @@
 import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ConfirmDialog } from "@/components/ConfirmDialog"
 import type { Session } from "@/lib/sessions"
 
 interface CloseWorktreeDialogProps {
@@ -29,29 +22,25 @@ export function CloseWorktreeDialog({
   onRemove,
 }: CloseWorktreeDialogProps) {
   return (
-    <Dialog open={session !== null} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Close worktree session</DialogTitle>
-          <DialogDescription className="break-words">
-            Keep or remove the worktree at{" "}
-            <span className="break-all font-mono">{session?.path}</span>? Removing deletes
-            the checkout but keeps its branch.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button variant="outline" onClick={onKeep}>
-            Keep worktree
-          </Button>
-          <Button variant="destructive" onClick={onRemove}>
-            Remove worktree
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={session !== null}
+      onCancel={onCancel}
+      title="Close worktree session"
+      description={
+        <>
+          Keep or remove the worktree at{" "}
+          <span className="break-all font-mono">{session?.path}</span>? Removing
+          deletes the checkout but keeps its branch.
+        </>
+      }
+    >
+      <Button variant="outline" onClick={onKeep}>
+        Keep worktree
+      </Button>
+      <Button variant="destructive" onClick={onRemove}>
+        Remove worktree
+      </Button>
+    </ConfirmDialog>
   )
 }
 
@@ -72,25 +61,22 @@ export function ForceRemoveWorktreeDialog({
   onForceRemove,
 }: ForceRemoveWorktreeDialogProps) {
   return (
-    <Dialog open={session !== null} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Worktree has uncommitted changes</DialogTitle>
-          <DialogDescription className="break-words">
-            The worktree at <span className="break-all font-mono">{session?.path}</span>{" "}
-            contains uncommitted changes. Removing it will discard them
-            permanently. The branch is kept.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button variant="destructive" onClick={onForceRemove}>
-            Discard changes and remove
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={session !== null}
+      onCancel={onCancel}
+      title="Worktree has uncommitted changes"
+      description={
+        <>
+          The worktree at{" "}
+          <span className="break-all font-mono">{session?.path}</span> contains
+          uncommitted changes. Removing it will discard them permanently. The
+          branch is kept.
+        </>
+      }
+    >
+      <Button variant="destructive" onClick={onForceRemove}>
+        Discard changes and remove
+      </Button>
+    </ConfirmDialog>
   )
 }

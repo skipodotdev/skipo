@@ -3,6 +3,7 @@ import {useMatch} from "react-router-dom"
 import {Bot, GitBranch, Plus, Terminal} from "lucide-react"
 import {toast} from "sonner"
 import {Service as ProjectService} from "../../../bindings/github.com/omartelo/lich/internal/project"
+import {Button} from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +21,7 @@ import {SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable"
 import {useGitStatus} from "@/lib/useGitStatus"
 import {usePanelWidth} from "@/lib/use-panel-width"
 import {useSortableList} from "@/lib/use-sortable-list"
+import {errorText} from "@/lib/utils"
 
 // SessionSidebar lists the active project's sessions and can be drag-resized
 // within a fixed pixel range. Width persists across restarts. It renders nothing
@@ -103,9 +105,7 @@ export function SessionSidebar() {
     closeSession(projectId, session.id)
     ProjectService.RemoveWorktree(path, session.path ?? "", force).catch(
       (err: unknown) => {
-        toast.error(
-          `Failed to remove worktree: ${err instanceof Error ? err.message : String(err)}`,
-        )
+        toast.error(`Failed to remove worktree: ${errorText(err)}`)
       },
     )
   }
@@ -150,7 +150,7 @@ export function SessionSidebar() {
           <DropdownMenuTrigger
             title="New session"
             aria-label="New session"
-            className="flex size-6 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            render={<Button variant="ghost" size="icon-xs" className="text-muted-foreground"/>}
           >
             <Plus className="size-4"/>
           </DropdownMenuTrigger>

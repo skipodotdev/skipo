@@ -3,6 +3,7 @@ import { Plus, Settings } from "lucide-react"
 import { DndContext, closestCenter } from "@dnd-kit/core"
 import { SortableContext, horizontalListSortingStrategy } from "@dnd-kit/sortable"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button"
 import { useProjects } from "@/lib/projects"
 import { useSortableList } from "@/lib/use-sortable-list"
 import { ProjectTab } from "./ProjectTab"
@@ -32,15 +33,16 @@ export function ProjectTabs() {
             ))}
           </SortableContext>
         </DndContext>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-sm"
           onClick={() => void openProject()}
           title="Open project"
           aria-label="Open project"
-          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+          className="text-muted-foreground"
         >
           <Plus className="size-4" />
-        </button>
+        </Button>
       </div>
 
       <NavLink

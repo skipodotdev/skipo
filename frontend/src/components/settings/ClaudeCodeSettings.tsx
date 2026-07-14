@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react"
 import { Service as Store } from "../../../bindings/github.com/omartelo/lich/internal/store"
+import { Input } from "@/components/ui/input"
 import { SettingBlock } from "./SettingBlock"
 
 // Global scope for a setting: an empty project id. Per-project overrides live
@@ -24,13 +25,13 @@ export function ClaudeCodeSettings() {
       title="Custom path"
       description="Path to the Claude Code binary or a launcher script spawned in each terminal. Leave empty to run 'claude' from your $PATH."
     >
-      <input
+      <Input
         value={bin}
         onChange={(event) => persist(event.target.value)}
         placeholder="claude"
         spellCheck={false}
         aria-label="Claude Code custom path"
-        className="h-9 w-96 max-w-full rounded-md border border-border bg-background px-3 font-mono text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        className="w-96 max-w-full font-mono"
       />
     </SettingBlock>
   )

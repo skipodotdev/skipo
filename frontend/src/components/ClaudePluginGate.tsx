@@ -16,6 +16,7 @@ import {
   UPDATE_DISMISSED_KEY,
 } from "@/lib/plugin-gate"
 import {Service as ClaudePlugin} from "../../bindings/github.com/omartelo/lich/internal/claudeplugin"
+import {errorText} from "@/lib/utils"
 
 const RESTART_HINT = "restart your Claude sessions to apply."
 
@@ -72,7 +73,7 @@ export function ClaudePluginGate() {
       await ClaudePlugin.Update()
       toast.success(`Plugin updated — ${RESTART_HINT}`, {id: pending})
     } catch (error) {
-      toast.error(`Update failed: ${errorMessage(error)}`, {id: pending})
+      toast.error(`Update failed: ${errorText(error)}`, {id: pending})
     }
   }
 
@@ -83,7 +84,7 @@ export function ClaudePluginGate() {
       setInstallOpen(false)
       toast.success(`Plugin installed — ${RESTART_HINT}`)
     } catch (error) {
-      toast.error(`Install failed: ${errorMessage(error)}`)
+      toast.error(`Install failed: ${errorText(error)}`)
     } finally {
       setInstalling(false)
     }
@@ -119,8 +120,4 @@ export function ClaudePluginGate() {
       </DialogContent>
     </Dialog>
   )
-}
-
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }

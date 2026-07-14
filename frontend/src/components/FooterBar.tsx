@@ -1,14 +1,13 @@
 import {useEffect, useState} from "react"
-import {useMatch} from "react-router-dom"
 import {Browser} from "@wailsio/runtime"
 import {FileText, GitBranch, Folder, Plus, Diff, GitPullRequestArrow} from "lucide-react"
 import {Service as ProjectService} from "../../bindings/github.com/omartelo/lich/internal/project"
 import {Service as TerminalService} from "../../bindings/github.com/omartelo/lich/internal/terminal"
-import {useProjects} from "@/lib/projects"
-import {activeSessionId, sessionsOf} from "@/lib/sessions"
+import {useActiveSession} from "@/lib/useActiveSession"
 import {displayPath} from "@/lib/paths"
 import {useGitStatus} from "@/lib/useGitStatus"
 import {usePullRequest} from "@/lib/usePullRequest"
+import {DiffStat} from "@/components/DiffStat"
 import {
   Tooltip,
   TooltipContent,
@@ -39,15 +38,7 @@ interface FooterBarProps {
 // session: a worktree session shows its checkout's path, branch and diff. The
 // diff counters double as the toggle for the review panel.
 export function FooterBar({diffOpen, onToggleDiff}: FooterBarProps) {
-  const {projects, sessions} = useProjects()
-  const match = useMatch("/projects/:projectId")
-  const projectId = match?.params.projectId ?? null
-  const projectPath = projects.find((p) => p.id === projectId)?.path ?? ""
-  const sessionId = projectId ? activeSessionId(sessions, projectId) : ""
-  const session = projectId
-    ? sessionsOf(sessions, projectId).find((s) => s.id === sessionId)
-    : undefined
-  const path = session?.path || projectPath
+  const {sessionId, path} = useActiveSession()
   const status = useGitStatus(path)
   const pr = usePullRequest(path, status?.branch ?? "")
   const now = useNow()
@@ -99,12 +90,7 @@ export function FooterBar({diffOpen, onToggleDiff}: FooterBarProps) {
                 <FileText className="size-3.5"/>
                 {status.files}
                 <span className="opacity-50">·</span>
-                <span className="font-medium text-sky-600 dark:text-sky-400">
-                  +{status.added}
-                </span>
-                <span className="font-medium text-pink-600 dark:text-pink-400">
-                  -{status.deleted}
-                </span>
+                <DiffStat added={status.added} deleted={status.deleted}/>
               </>
             )}
           </TooltipTrigger>

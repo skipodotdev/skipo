@@ -1,12 +1,5 @@
 import {Button} from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import {ConfirmDialog} from "@/components/ConfirmDialog"
 import type {DiffFile} from "@/lib/diff"
 
 interface DiscardDialogProps {
@@ -21,26 +14,22 @@ interface DiscardDialogProps {
 // changes are gone for good.
 export function DiscardDialog({file, onCancel, onDiscard}: DiscardDialogProps) {
   return (
-    <Dialog open={file !== null} onOpenChange={(open) => !open && onCancel()}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>Discard changes</DialogTitle>
-          <DialogDescription className="break-words">
-            Revert all uncommitted changes to{" "}
-            <span className="break-all font-mono">{file?.newPath}</span>?
-            {file?.status === "added" && " The file will be deleted from disk."}
-            {" "}This cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button variant="destructive" onClick={onDiscard}>
-            Discard changes
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ConfirmDialog
+      open={file !== null}
+      onCancel={onCancel}
+      title="Discard changes"
+      description={
+        <>
+          Revert all uncommitted changes to{" "}
+          <span className="break-all font-mono">{file?.newPath}</span>?
+          {file?.status === "added" && " The file will be deleted from disk."}{" "}
+          This cannot be undone.
+        </>
+      }
+    >
+      <Button variant="destructive" onClick={onDiscard}>
+        Discard changes
+      </Button>
+    </ConfirmDialog>
   )
 }

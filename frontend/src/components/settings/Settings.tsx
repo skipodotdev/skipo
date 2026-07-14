@@ -6,6 +6,7 @@ import { AppearanceSettings } from "./AppearanceSettings"
 import { ClaudeCodeSettings } from "./ClaudeCodeSettings"
 import { ProjectClaudeCodeSettings } from "./ProjectClaudeCodeSettings"
 import { HotkeysSettings } from "./HotkeysSettings"
+import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 // SECTIONS is the settings registry: adding a category is one new file under
@@ -67,12 +68,12 @@ export function Settings() {
         <div className="p-3">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <Input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search"
               aria-label="Search settings"
-              className="h-9 w-full rounded-md border border-border bg-background pl-8 pr-3 text-sm text-foreground outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="pl-8"
             />
           </div>
         </div>

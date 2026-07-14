@@ -9,6 +9,7 @@ import {displayPath} from "@/lib/paths"
 import {type Session} from "@/lib/sessions"
 import {statusEventName, toSessionStatus, type SessionStatus} from "@/lib/session-events"
 import {useGitStatus} from "@/lib/useGitStatus"
+import {DiffStat} from "@/components/DiffStat"
 import {Tooltip, TooltipContent, TooltipTrigger} from "@/components/ui/tooltip"
 import {
   ContextMenu,
@@ -180,12 +181,7 @@ export function SessionCard({
                 </span>
                   {git.files > 0 && (
                     <span className="flex shrink-0 items-center gap-1 px-1 py-0.5 bg-muted-foreground/10 rounded">
-                      <span className="font-medium text-sky-600 dark:text-sky-400">
-                        +{git.added}
-                      </span>
-                      <span className="font-medium text-pink-600 dark:text-pink-400">
-                        -{git.deleted}
-                      </span>
+                      <DiffStat added={git.added} deleted={git.deleted}/>
                     </span>
                   )}
               </span>
