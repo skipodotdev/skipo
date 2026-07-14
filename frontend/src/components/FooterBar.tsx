@@ -70,7 +70,7 @@ export function FooterBar({diffOpen, onToggleDiff}: FooterBarProps) {
               onClick={() => void attachFile()}
               disabled={!sessionId}
               aria-label="Attach file"
-              className="flex size-6 items-center justify-center rounded-md border border-border bg-muted text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40"
+              className="flex items-center justify-center rounded-md border border-border bg-muted p-1 text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40"
             />
           }
         >
