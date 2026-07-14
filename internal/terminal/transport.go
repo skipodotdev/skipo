@@ -132,8 +132,8 @@ func newTransport(
 	mux.HandleFunc("/session-start", t.sessionStart)
 	mux.HandleFunc("/session-title", t.sessionTitle)
 	mux.HandleFunc("/session-touched", t.sessionTouched)
-	// ponytail: server and listener live for the process lifetime, like the
-	// PTY sessions they serve; add Shutdown if the app ever needs teardown.
+	// Server and listener live for the process lifetime, like the PTY sessions
+	// they serve; add Shutdown if the app ever needs teardown.
 	go func() { _ = http.Serve(listener, mux) }()
 	return t, nil
 }
@@ -146,9 +146,19 @@ func (t *transport) authorized(r *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(provided), []byte(t.token)) == 1
 }
 
-// hook receives a session status POST from the Claude Code hook running inside a
-// spawned PTY and forwards it to the frontend via the status callback.
-func (t *transport) hook(w http.ResponseWriter, r *http.Request) {
+// servePost is the skeleton every hook endpoint shares: POST only, token
+// authenticated, body bounded to hookBodyLimit, parsed, applied, 204. A parse
+// failure is the caller's fault (400); an apply failure is ours (500). The hook
+// client ignores the response either way — the status codes exist so a failure
+// is visible to logs and tests rather than silently swallowed. It is a function
+// rather than a method on transport because Go methods cannot be generic.
+func servePost[T any](
+	t *transport,
+	w http.ResponseWriter,
+	r *http.Request,
+	parse func([]byte) (T, error),
+	apply func(T) error,
+) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -162,138 +172,131 @@ func (t *transport) hook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to read body", http.StatusBadRequest)
 		return
 	}
-	id, state, err := parseHookRequest(body)
+	parsed, err := parse(body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	if t.status != nil {
-		t.status(id, state)
+	if err := apply(parsed); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// hookRequest is a status POST body.
+type hookRequest struct {
+	SessionID string `json:"session_id"`
+	State     string `json:"state"`
+}
+
+// hook receives a session status POST from the Claude Code hook running inside a
+// spawned PTY and forwards it to the frontend via the status callback.
+func (t *transport) hook(w http.ResponseWriter, r *http.Request) {
+	servePost(t, w, r, parseHookRequest, func(req hookRequest) error {
+		if t.status != nil {
+			t.status(req.SessionID, req.State)
+		}
+		return nil
+	})
 }
 
 // parseHookRequest validates a status POST body: a session id and one of the
 // known states. It never trusts the payload — an unknown state is rejected so a
 // stray or hostile POST can't drive the UI into an undefined status.
-func parseHookRequest(body []byte) (id, state string, err error) {
-	var req struct {
-		SessionID string `json:"session_id"`
-		State     string `json:"state"`
-	}
+func parseHookRequest(body []byte) (hookRequest, error) {
+	var req hookRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		return "", "", fmt.Errorf("invalid hook body: %w", err)
+		return hookRequest{}, fmt.Errorf("invalid hook body: %w", err)
 	}
 	if req.SessionID == "" {
-		return "", "", errors.New("hook missing session_id")
+		return hookRequest{}, errors.New("hook missing session_id")
 	}
 	if req.State != statusBusy && req.State != statusDone &&
 		req.State != statusWaiting && req.State != statusIdle {
-		return "", "", fmt.Errorf("hook has unknown state %q", req.State)
+		return hookRequest{}, fmt.Errorf("hook has unknown state %q", req.State)
 	}
-	return req.SessionID, req.State, nil
+	return req, nil
+}
+
+// startRequest is a SessionStart POST body.
+type startRequest struct {
+	SessionID       string `json:"session_id"`
+	ClaudeSessionID string `json:"claude_session_id"`
 }
 
 // sessionStart receives the SessionStart POST from the Claude Code hook running
 // inside a spawned PTY and records the Claude session id against the lich
-// session via the linkSession callback. A store failure is a 500 so it surfaces
-// in logs; the hook ignores the response either way.
+// session via the linkSession callback.
 func (t *transport) sessionStart(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !t.authorized(r) {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, hookBodyLimit))
-	if err != nil {
-		http.Error(w, "failed to read body", http.StatusBadRequest)
-		return
-	}
-	id, claudeID, err := parseSessionStart(body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if t.linkSession != nil {
-		if err := t.linkSession(id, claudeID); err != nil {
-			http.Error(w, "failed to record session", http.StatusInternalServerError)
-			return
+	servePost(t, w, r, parseSessionStart, func(req startRequest) error {
+		if t.linkSession == nil {
+			return nil
 		}
-	}
-	w.WriteHeader(http.StatusNoContent)
+		if err := t.linkSession(req.SessionID, req.ClaudeSessionID); err != nil {
+			return fmt.Errorf("failed to record session: %w", err)
+		}
+		return nil
+	})
 }
 
 // parseSessionStart validates a SessionStart POST body: the lich session id and
 // the non-empty Claude session id it is reporting. Both must be present.
-func parseSessionStart(body []byte) (id, claudeID string, err error) {
-	var req struct {
-		SessionID       string `json:"session_id"`
-		ClaudeSessionID string `json:"claude_session_id"`
-	}
+func parseSessionStart(body []byte) (startRequest, error) {
+	var req startRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		return "", "", fmt.Errorf("invalid session-start body: %w", err)
+		return startRequest{}, fmt.Errorf("invalid session-start body: %w", err)
 	}
 	if req.SessionID == "" {
-		return "", "", errors.New("session-start missing session_id")
+		return startRequest{}, errors.New("session-start missing session_id")
 	}
 	if req.ClaudeSessionID == "" {
-		return "", "", errors.New("session-start missing claude_session_id")
+		return startRequest{}, errors.New("session-start missing claude_session_id")
 	}
-	return req.SessionID, req.ClaudeSessionID, nil
+	return req, nil
+}
+
+// titleRequest is an ai-title POST body.
+type titleRequest struct {
+	SessionID string `json:"session_id"`
+	Title     string `json:"title"`
 }
 
 // sessionTitle receives the ai-title POST from the Claude Code hook and applies
 // it as the session's label via the setTitle callback, which no-ops when the
-// user has renamed the session. A store failure is a 500; the hook ignores it.
+// user has renamed the session.
 func (t *transport) sessionTitle(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !t.authorized(r) {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, hookBodyLimit))
-	if err != nil {
-		http.Error(w, "failed to read body", http.StatusBadRequest)
-		return
-	}
-	id, title, err := parseSessionTitle(body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if t.setTitle != nil {
-		if err := t.setTitle(id, title); err != nil {
-			http.Error(w, "failed to set title", http.StatusInternalServerError)
-			return
+	servePost(t, w, r, parseSessionTitle, func(req titleRequest) error {
+		if t.setTitle == nil {
+			return nil
 		}
-	}
-	w.WriteHeader(http.StatusNoContent)
+		if err := t.setTitle(req.SessionID, req.Title); err != nil {
+			return fmt.Errorf("failed to set title: %w", err)
+		}
+		return nil
+	})
 }
 
 // parseSessionTitle validates an ai-title POST body: the lich session id and a
 // non-empty title (trimmed, since the hook extracts it from a transcript line).
-func parseSessionTitle(body []byte) (id, title string, err error) {
-	var req struct {
-		SessionID string `json:"session_id"`
-		Title     string `json:"title"`
-	}
+func parseSessionTitle(body []byte) (titleRequest, error) {
+	var req titleRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		return "", "", fmt.Errorf("invalid session-title body: %w", err)
+		return titleRequest{}, fmt.Errorf("invalid session-title body: %w", err)
 	}
 	if req.SessionID == "" {
-		return "", "", errors.New("session-title missing session_id")
+		return titleRequest{}, errors.New("session-title missing session_id")
 	}
-	title = strings.TrimSpace(req.Title)
-	if title == "" {
-		return "", "", errors.New("session-title missing title")
+	req.Title = strings.TrimSpace(req.Title)
+	if req.Title == "" {
+		return titleRequest{}, errors.New("session-title missing title")
 	}
-	return req.SessionID, title, nil
+	return req, nil
+}
+
+// touchedRequest is a touched POST body.
+type touchedRequest struct {
+	SessionID string `json:"session_id"`
 }
 
 // sessionTouched receives a POST from the Claude Code hook when a session likely
@@ -302,43 +305,25 @@ func parseSessionTitle(body []byte) (id, title string, err error) {
 // a best-effort latency optimization over the frontend's steady poll, so a
 // failure is harmless — the poll still catches the change.
 func (t *transport) sessionTouched(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if !t.authorized(r) {
-		http.Error(w, "invalid token", http.StatusUnauthorized)
-		return
-	}
-	body, err := io.ReadAll(io.LimitReader(r.Body, hookBodyLimit))
-	if err != nil {
-		http.Error(w, "failed to read body", http.StatusBadRequest)
-		return
-	}
-	id, err := parseSessionTouched(body)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-	if t.touched != nil {
-		t.touched(id)
-	}
-	w.WriteHeader(http.StatusNoContent)
+	servePost(t, w, r, parseSessionTouched, func(req touchedRequest) error {
+		if t.touched != nil {
+			t.touched(req.SessionID)
+		}
+		return nil
+	})
 }
 
 // parseSessionTouched validates a touched POST body: just a non-empty lich
 // session id.
-func parseSessionTouched(body []byte) (id string, err error) {
-	var req struct {
-		SessionID string `json:"session_id"`
-	}
+func parseSessionTouched(body []byte) (touchedRequest, error) {
+	var req touchedRequest
 	if err := json.Unmarshal(body, &req); err != nil {
-		return "", fmt.Errorf("invalid session-touched body: %w", err)
+		return touchedRequest{}, fmt.Errorf("invalid session-touched body: %w", err)
 	}
 	if req.SessionID == "" {
-		return "", errors.New("session-touched missing session_id")
+		return touchedRequest{}, errors.New("session-touched missing session_id")
 	}
-	return req.SessionID, nil
+	return req, nil
 }
 
 // handle upgrades the single expected client. See authorized for the auth model.
@@ -395,9 +380,9 @@ func (t *transport) drop(conn *websocket.Conn) {
 
 // send delivers one session's output frame to the connected client. It
 // returns false — and drops the client on write failure — when the caller
-// should fall back to the event bridge.
-// ponytail: one mutex serializes writes for every session; per-session queues
-// only if a local loopback write ever measurably stalls.
+// should fall back to the event bridge. One mutex serializes writes for every
+// session; per-session queues only if a local loopback write ever measurably
+// stalls.
 func (t *transport) send(id string, data []byte) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
