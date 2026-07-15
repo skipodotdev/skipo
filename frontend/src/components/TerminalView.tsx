@@ -35,6 +35,11 @@ const FONT_SIZE = 14
 const REFIT_DEBOUNCE_MS = 100
 const COPY_DEBOUNCE_MS = 150
 const SCROLLBACK_LINES = 5000
+// With scrollback on, FitAddon reserves a scrollbar gutter on the right —
+// DEFAULT_SCROLL_BAR_WIDTH (~14px) unless overviewRuler.width is set, then
+// that. A slim overview ruler keeps the reserve at 6px and the area is drawn
+// by xterm in the theme background, so the terminal meets the window edge.
+const OVERVIEW_RULER_WIDTH = 6
 
 // Terminal color schemes. Light keeps a high-contrast foreground so CLI output
 // stays legible against the pale background.
@@ -113,6 +118,7 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
       cursorBlink: true,
       scrollback: SCROLLBACK_LINES,
       allowProposedApi: true,
+      overviewRuler: { width: OVERVIEW_RULER_WIDTH },
       theme: TERMINAL_COLORS[themeRef.current],
     })
     const fit = new FitAddon()
@@ -373,5 +379,15 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
     }
   }, [resolvedTerminalTheme])
 
-  return <div ref={containerRef} data-terminal className="h-full w-full" />
+  // The container carries the terminal's own background: the sub-cell
+  // remainder of the grid fit and the ruler gutter then blend into the
+  // terminal instead of showing the app background as a right-edge stripe.
+  return (
+    <div
+      ref={containerRef}
+      data-terminal
+      className="h-full w-full"
+      style={{ backgroundColor: TERMINAL_COLORS[resolvedTerminalTheme].background }}
+    />
+  )
 }

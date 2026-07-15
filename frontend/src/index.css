@@ -205,3 +205,16 @@
 .dark .tok-typeName, .dark .tok-className, .dark .tok-namespace { color: oklch(0.8 0.09 200); }
 .dark .tok-propertyName { color: oklch(0.75 0.1 255); }
 .dark .tok-variableName.tok-definition { color: oklch(0.75 0.1 255); }
+/* xterm viewport scrollbar, discreet: today's dark native scrollbar reads as
+   a stripe between the terminal and the window edge. Thin overlay thumb,
+   transparent track; the overview ruler (TerminalView) marks scroll position. */
+.xterm-viewport::-webkit-scrollbar {
+  width: 6px;
+}
+.xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, currentColor 25%, transparent);
+  border-radius: 3px;
+}
