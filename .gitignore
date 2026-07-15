@@ -21,3 +21,4 @@ build/android/gen/
 /build/linux/appimage/*.png
 /build/ios/
 /build/android/
+/spike
