@@ -38,11 +38,13 @@ func FindBrowser(lookPath func(name string) (string, error)) (string, error) {
 // already-running instance (the spawned process exits immediately, breaking
 // the window-closed-means-quit lifecycle), and the profile holds the
 // frontend's localStorage (lich.* settings), so it must persist across runs.
-func Args(url, dataDir string, extra []string) []string {
+// class is the WM_CLASS: the dev shell passes its own so compositor window
+// rules targeting the daily driver never capture the dev window.
+func Args(url, dataDir, class string, extra []string) []string {
 	args := []string{
 		"--app=" + url,
 		"--user-data-dir=" + dataDir,
-		"--class=lich",
+		"--class=" + class,
 		"--no-first-run",
 		"--no-default-browser-check",
 	}
@@ -52,7 +54,7 @@ func Args(url, dataDir string, extra []string) []string {
 // Run opens the window and blocks until the user closes it — the browser
 // process exiting is the app lifecycle. Extra args pass through to Chromium
 // (e.g. --ozone-platform=wayland).
-func Run(url, dataDir string, extra []string) error {
+func Run(url, dataDir, class string, extra []string) error {
 	browser, err := FindBrowser(exec.LookPath)
 	if err != nil {
 		return err
@@ -60,7 +62,7 @@ func Run(url, dataDir string, extra []string) error {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return fmt.Errorf("chromium profile dir: %w", err)
 	}
-	cmd := exec.Command(browser, Args(url, dataDir, extra)...)
+	cmd := exec.Command(browser, Args(url, dataDir, class, extra)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {

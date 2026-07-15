@@ -97,9 +97,13 @@ func runChromium(term *terminal.Service) {
 	profileDir := filepath.Join(configDir, "lich", "chromium-profile")
 
 	url := fmt.Sprintf("http://127.0.0.1:%d/?token=%s", info.Port, info.Token)
+	class := "lich"
 	if dev := os.Getenv("LICH_DEV_URL"); dev != "" {
 		url = fmt.Sprintf("%s/?token=%s&backend=%d", dev, info.Token, info.Port)
 		profileDir = filepath.Join(configDir, "lich", "chromium-profile-dev")
+		// Own WM_CLASS: compositor rules for the daily driver must not
+		// capture the dev window.
+		class = "lichdev"
 	}
 	log.Printf("[lich] chromium shell on %s", url)
 
@@ -107,7 +111,7 @@ func runChromium(term *terminal.Service) {
 	if args := os.Args[1:]; len(args) > 1 && args[0] == "--" {
 		extra = args[1:]
 	}
-	if err := chromium.Run(url, profileDir, extra); err != nil {
+	if err := chromium.Run(url, profileDir, class, extra); err != nil {
 		log.Fatal(err)
 	}
 }
