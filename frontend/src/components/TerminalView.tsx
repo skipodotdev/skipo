@@ -1,7 +1,6 @@
 import { useEffect, useRef } from "react"
 import { Terminal } from "@xterm/xterm"
 import { WebglAddon } from "@xterm/addon-webgl"
-import { FitAddon } from "@xterm/addon-fit"
 import { SerializeAddon } from "@xterm/addon-serialize"
 import { WebLinksAddon } from "@xterm/addon-web-links"
 import { toast } from "sonner"
@@ -12,6 +11,7 @@ import { chordSequence } from "@/lib/term-keys"
 import { makeReplayBuffer } from "@/lib/replay-buffer"
 import { recordChunk } from "@/lib/term-perf"
 import { copyToastMessage, COPY_TOAST_DURATION_MS } from "@/lib/copy-toast"
+import { computeGrid } from "@/lib/term-fit"
 import { useSettings } from "@/lib/settings"
 import type { ResolvedTheme } from "@/lib/settings"
 import type { SessionKind } from "@/lib/sessions"
@@ -35,11 +35,34 @@ const FONT_SIZE = 14
 const REFIT_DEBOUNCE_MS = 100
 const COPY_DEBOUNCE_MS = 150
 const SCROLLBACK_LINES = 5000
-// With scrollback on, FitAddon reserves a scrollbar gutter on the right —
-// DEFAULT_SCROLL_BAR_WIDTH (~14px) unless overviewRuler.width is set, then
-// that. A slim overview ruler keeps the reserve at 6px and the area is drawn
-// by xterm in the theme background, so the terminal meets the window edge.
-const OVERVIEW_RULER_WIDTH = 6
+
+// cellDimensions reads the renderer's measured cell size — the same private
+// API FitAddon relies on ("TODO: Remove reliance" upstream). Null before the
+// first render measure or if xterm ever moves the private; refit then skips,
+// keeping the current grid (degrades, never breaks).
+function cellDimensions(term: Terminal): { width: number; height: number } | null {
+  const core = (term as unknown as { _core?: { _renderService?: { dimensions?: { css?: { cell?: { width: number; height: number } } } } } })._core
+  const cell = core?._renderService?.dimensions?.css?.cell
+  if (!cell || !cell.width || !cell.height) {
+    return null
+  }
+  return cell
+}
+
+// fitTerminal resizes the grid to fill the container edge to edge (replacing
+// xterm's FitAddon, which reserves a scrollbar gutter on the right — see
+// term-fit.ts). No-op when metrics or size aren't ready, or the grid already
+// fits.
+function fitTerminal(term: Terminal, container: HTMLElement): void {
+  const cell = cellDimensions(term)
+  if (!cell) {
+    return
+  }
+  const grid = computeGrid(container.clientWidth, container.clientHeight, cell)
+  if (grid && (grid.cols !== term.cols || grid.rows !== term.rows)) {
+    term.resize(grid.cols, grid.rows)
+  }
+}
 
 // Terminal color schemes. Light keeps a high-contrast foreground so CLI output
 // stays legible against the pale background.
@@ -83,7 +106,6 @@ export interface TerminalViewProps {
 
 interface LiveTerminal {
   term: Terminal
-  fit: FitAddon
   serialize: SerializeAddon
   dispose(): void
 }
@@ -118,12 +140,9 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
       cursorBlink: true,
       scrollback: SCROLLBACK_LINES,
       allowProposedApi: true,
-      overviewRuler: { width: OVERVIEW_RULER_WIDTH },
       theme: TERMINAL_COLORS[themeRef.current],
     })
-    const fit = new FitAddon()
     const serialize = new SerializeAddon()
-    term.loadAddon(fit)
     term.loadAddon(serialize)
     term.loadAddon(
       new WebLinksAddon((event, uri) => {
@@ -141,7 +160,7 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
       webgl.dispose()
     })
     term.loadAddon(webgl)
-    fit.fit()
+    fitTerminal(term, container)
 
     const writeInput = (data: string) => {
       if (!sendInput(sessionId, data)) {
@@ -193,7 +212,6 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
 
     return {
       term,
-      fit,
       serialize,
       dispose() {
         window.clearTimeout(copyTimer)
@@ -291,8 +309,8 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
       const resizeObserver = new ResizeObserver(() => {
         window.clearTimeout(refitTimer)
         refitTimer = window.setTimeout(() => {
-          if (visibleRef.current) {
-            liveRef.current?.fit.fit()
+          if (visibleRef.current && liveRef.current) {
+            fitTerminal(liveRef.current.term, container)
           }
         }, REFIT_DEBOUNCE_MS)
       })
@@ -347,7 +365,9 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
       return
     }
     void Service.SetVisible(sessionId, true)
-    live.fit.fit()
+    if (containerRef.current) {
+      fitTerminal(live.term, containerRef.current)
+    }
     void Service.Resize(sessionId, live.term.cols, live.term.rows)
     live.term.focus()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -363,7 +383,9 @@ export function TerminalView({ sessionId, projectId, cwd, kind, visible }: Termi
     void (async () => {
       await ensureFontLoaded(font)
       live.term.options.fontFamily = `"${font}", monospace`
-      live.fit.fit()
+      if (containerRef.current) {
+        fitTerminal(live.term, containerRef.current)
+      }
       if (visibleRef.current) {
         void Service.Resize(sessionId, live.term.cols, live.term.rows)
       }
