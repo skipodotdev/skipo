@@ -6,10 +6,18 @@ import (
 	"testing"
 )
 
+// TestFindBrowserPicksFirstHit proves missing candidates are skipped and
+// preference order decides among the installed ones — against whichever
+// candidate list this OS compiles in.
 func TestFindBrowserPicksFirstHit(t *testing.T) {
+	candidates := browserCandidates()
+	if len(candidates) < 2 {
+		t.Fatal("candidate list too short to prove ordering")
+	}
+	hits := map[string]bool{candidates[1]: true, candidates[len(candidates)-1]: true}
 	lookPath := func(name string) (string, error) {
-		if name == "google-chrome-stable" || name == "brave" {
-			return "/usr/bin/" + name, nil
+		if hits[name] {
+			return "/resolved/" + name, nil
 		}
 		return "", errors.New("not found")
 	}
@@ -17,8 +25,8 @@ func TestFindBrowserPicksFirstHit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FindBrowser: %v", err)
 	}
-	if got != "/usr/bin/google-chrome-stable" {
-		t.Fatalf("want first candidate in preference order, got %q", got)
+	if want := "/resolved/" + candidates[1]; got != want {
+		t.Fatalf("FindBrowser = %q, want the earliest installed candidate %q", got, want)
 	}
 }
 
