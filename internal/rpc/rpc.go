@@ -15,6 +15,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"reflect"
 	"strings"
@@ -68,22 +69,25 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	name := strings.TrimPrefix(r.URL.Path, "/rpc/")
 	method, err := h.lookup(name)
 	if err != nil {
+		slog.Warn("rpc: unknown method", "method", name, "err", err)
 		writeError(w, http.StatusNotFound, err.Error())
 		return
 	}
 
 	body, err := io.ReadAll(io.LimitReader(r.Body, bodyLimit))
 	if err != nil {
+		slog.Warn("rpc: unreadable body", "method", name, "err", err)
 		writeError(w, http.StatusBadRequest, "unreadable body")
 		return
 	}
 	args, err := decodeArgs(method.Type(), body)
 	if err != nil {
+		slog.Warn("rpc: bad arguments", "method", name, "err", err)
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	writeResult(w, method.Call(args))
+	writeResult(w, name, method.Call(args))
 }
 
 func (h *Handler) lookup(name string) (reflect.Value, error) {
@@ -130,11 +134,15 @@ func decodeArgs(t reflect.Type, body []byte) ([]reflect.Value, error) {
 
 // writeResult maps Go returns onto the response: a trailing non-nil error is
 // a 500, otherwise the first non-error value (or null) is the 200 body.
-func writeResult(w http.ResponseWriter, results []reflect.Value) {
+// Every service error is also logged with the method name — the RPC is the
+// single funnel all frontend-triggered failures pass through, which makes
+// this the one line that turns them into an audit trail.
+func writeResult(w http.ResponseWriter, method string, results []reflect.Value) {
 	var payload any
 	for _, result := range results {
 		if result.Type().Implements(errType) {
 			if err, _ := result.Interface().(error); err != nil {
+				slog.Warn("rpc: call failed", "method", method, "err", err)
 				writeError(w, http.StatusInternalServerError, err.Error())
 				return
 			}
@@ -146,8 +154,9 @@ func writeResult(w http.ResponseWriter, results []reflect.Value) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(payload); err != nil {
-		// Headers are gone; nothing to do but log-free best effort.
-		_ = err
+		// Headers are gone — the response cannot change anymore, but the
+		// audit trail can still say the reply never reached the page.
+		slog.Warn("rpc: encode response", "method", method, "err", err)
 	}
 }
 

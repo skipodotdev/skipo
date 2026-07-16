@@ -8,6 +8,7 @@ package terminal
 import (
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"strconv"
@@ -107,7 +108,11 @@ func New(store Store, env []string, hub *events.Hub) *Service {
 		env:      append(childEnv(env), "TERM=xterm-256color"),
 	}
 	ws, err := newTransport(
-		func(id string, data []byte) { _ = s.writeBytes(id, data) },
+		func(id string, data []byte) {
+			if err := s.writeBytes(id, data); err != nil {
+				slog.Warn("terminal: input write failed", "session", id, "err", err)
+			}
+		},
 		func(id, state string) {
 			hub.Emit(statusEventName, statusEvent{ID: id, State: state})
 		},

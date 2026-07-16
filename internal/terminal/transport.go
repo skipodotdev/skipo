@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -143,8 +144,13 @@ func newTransport(
 	mux.HandleFunc("/session-touched", t.sessionTouched)
 	t.mux = mux
 	// Server and listener live for the process lifetime, like the PTY sessions
-	// they serve; add Shutdown if the app ever needs teardown.
-	go func() { _ = http.Serve(listener, mux) }()
+	// they serve; add Shutdown if the app ever needs teardown. Serve returning
+	// is therefore always abnormal — the frontend just lost RPC and terminals.
+	go func() {
+		if err := http.Serve(listener, mux); err != nil {
+			slog.Error("transport listener stopped", "err", err)
+		}
+	}()
 	return t, nil
 }
 
@@ -205,10 +211,14 @@ func servePost[T any](
 	}
 	parsed, err := parse(body)
 	if err != nil {
+		// The hook client ignores responses, so the log is the only place a
+		// bad payload ever surfaces.
+		slog.Warn("hook: bad payload", "path", r.URL.Path, "err", err)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 	if err := apply(parsed); err != nil {
+		slog.Warn("hook: apply failed", "path", r.URL.Path, "err", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

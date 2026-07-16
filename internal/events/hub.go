@@ -9,7 +9,7 @@ package events
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"sync"
 	"time"
@@ -46,7 +46,7 @@ func (h *Hub) Emit(name string, data any) {
 	}
 	payload, err := json.Marshal(Envelope{Name: name, Data: data})
 	if err != nil {
-		log.Printf("events: marshal %s: %v", name, err)
+		slog.Warn("events: marshal", "event", name, "err", err)
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), writeTimeout)
@@ -83,7 +83,7 @@ func (h *Hub) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		OriginPatterns: []string{"*"},
 	})
 	if err != nil {
-		log.Printf("events: accept: %v", err)
+		slog.Warn("events: accept", "err", err)
 		return
 	}
 	h.attach(conn)
