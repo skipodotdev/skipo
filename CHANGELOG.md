@@ -34,6 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   kill the app by accident. Logs live in `%AppData%\lich\lich.log` — the
   console mirror became best-effort so a missing stderr never poisons the
   file half of the log.
+- Scrollbars are now discreet across the app. The heavy native Chromium
+  scrollbar is replaced by a thin translucent thumb (diff, settings, sidebar,
+  tabs) via a single global `::-webkit-scrollbar` rule; the terminal keeps its
+  existing 6px overlay.
 
 ## [0.5.0] - 2026-07-15
 
