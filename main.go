@@ -4,7 +4,7 @@ import (
 	"embed"
 	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,6 +13,7 @@ import (
 	"github.com/omartelo/lich/internal/claudeplugin"
 	"github.com/omartelo/lich/internal/events"
 	"github.com/omartelo/lich/internal/fonts"
+	"github.com/omartelo/lich/internal/logging"
 	"github.com/omartelo/lich/internal/project"
 	"github.com/omartelo/lich/internal/rpc"
 	"github.com/omartelo/lich/internal/store"
@@ -36,15 +37,30 @@ func main() {
 	// what the user launched lich with (see terminal.childEnv).
 	env := os.Environ()
 
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		slog.Error("resolve config dir", "err", err)
+		os.Exit(1)
+	}
+	// File logging as early as possible: every startup failure below must be
+	// readable after the fact — on Windows the console may not exist at all.
+	if closer, err := logging.Init(filepath.Join(configDir, "lich")); err != nil {
+		slog.Warn("file log unavailable, stderr only", "err", err)
+	} else {
+		defer closer.Close()
+	}
+
 	if os.Getenv("LICH_LISTEN_PORT") == "" {
 		if err := os.Setenv("LICH_LISTEN_PORT", defaultListenPort); err != nil {
-			log.Fatalf("failed to set LICH_LISTEN_PORT: %v", err)
+			slog.Error("set LICH_LISTEN_PORT", "err", err)
+			os.Exit(1)
 		}
 	}
 
 	db, err := store.New()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("open store", "err", err)
+		os.Exit(1)
 	}
 	defer db.Close()
 
@@ -67,7 +83,7 @@ func main() {
 	term.Mount("/rpc/", dispatcher)
 	term.Mount("/events", hub)
 
-	runChromium(term)
+	runChromium(term, configDir)
 }
 
 // runChromium serves the embedded frontend on the loopback listener and opens
@@ -78,40 +94,45 @@ func main() {
 // LICH_DEV_URL points the window at the Vite dev server instead of the
 // embedded frontend (see `task dev`); the token and the backend port ride the
 // query string so the page can find the RPC listener across the origin split.
-func runChromium(term *terminal.Service) {
+func runChromium(term *terminal.Service, configDir string) {
 	info := term.Transport()
 	if info.Port == 0 {
-		log.Fatalf("loopback listener failed to start — is port %s (LICH_LISTEN_PORT) free?", os.Getenv("LICH_LISTEN_PORT"))
+		slog.Error("loopback listener failed to start — is the port free?",
+			"port", os.Getenv("LICH_LISTEN_PORT"))
+		os.Exit(1)
 	}
 
 	dist, err := fs.Sub(assets, "frontend/dist")
 	if err != nil {
-		log.Fatalf("embedded frontend: %v", err)
+		slog.Error("embedded frontend", "err", err)
+		os.Exit(1)
 	}
 	term.MountPublic("/", http.FileServerFS(dist))
 
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		log.Fatalf("resolve config dir: %v", err)
-	}
 	profileDir := filepath.Join(configDir, "lich", "chromium-profile")
 
-	url := fmt.Sprintf("http://127.0.0.1:%d/?token=%s", info.Port, info.Token)
+	// The token stays out of the logs on purpose: the log file persists
+	// across sessions, the token must not.
+	addr := fmt.Sprintf("http://127.0.0.1:%d/", info.Port)
+	url := addr + "?token=" + info.Token
 	class := "lich"
 	if dev := os.Getenv("LICH_DEV_URL"); dev != "" {
+		addr = dev + "/"
 		url = fmt.Sprintf("%s/?token=%s&backend=%d", dev, info.Token, info.Port)
 		profileDir = filepath.Join(configDir, "lich", "chromium-profile-dev")
 		// Own WM_CLASS: compositor rules for the daily driver must not
 		// capture the dev window.
 		class = "lichdev"
 	}
-	log.Printf("[lich] chromium shell on %s", url)
+	slog.Info("chromium shell opening", "addr", addr)
 
 	var extra []string
 	if args := os.Args[1:]; len(args) > 1 && args[0] == "--" {
 		extra = args[1:]
 	}
 	if err := chromium.Run(url, profileDir, class, extra); err != nil {
-		log.Fatal(err)
+		slog.Error("chromium shell", "err", err)
+		os.Exit(1)
 	}
+	slog.Info("window closed, exiting")
 }

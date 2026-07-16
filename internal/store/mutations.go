@@ -17,7 +17,7 @@ func (s *Service) AddProject(id, name, path string) error {
 		id, name, path,
 	)
 	if err != nil {
-		return fmt.Errorf("add project: %w", err)
+		return fmt.Errorf("add project %q: %w", id, err)
 	}
 	return nil
 }
@@ -26,7 +26,7 @@ func (s *Service) AddProject(id, name, path string) error {
 // can be reopened later with its session state restored.
 func (s *Service) CloseProject(id string) error {
 	if _, err := s.db.Exec(`UPDATE projects SET is_open = 0 WHERE id = ?`, id); err != nil {
-		return fmt.Errorf("close project: %w", err)
+		return fmt.Errorf("close project %q: %w", id, err)
 	}
 	return nil
 }
@@ -49,13 +49,13 @@ func (s *Service) AddSession(projectID, sessionID, label, kind, path string, nex
 			         (SELECT COALESCE(MAX(position), -1) + 1 FROM sessions WHERE project_id = ?))`,
 			sessionID, projectID, label, kind, path, projectID,
 		); err != nil {
-			return fmt.Errorf("insert session: %w", err)
+			return fmt.Errorf("insert session %q: %w", sessionID, err)
 		}
 		if _, err := tx.Exec(
 			`UPDATE projects SET active_session_id = ?, next_seq = ? WHERE id = ?`,
 			sessionID, nextSeq, projectID,
 		); err != nil {
-			return fmt.Errorf("update project counters: %w", err)
+			return fmt.Errorf("update project %q counters: %w", projectID, err)
 		}
 		return nil
 	})
@@ -66,13 +66,13 @@ func (s *Service) AddSession(projectID, sessionID, label, kind, path string, nex
 func (s *Service) DeleteSession(projectID, sessionID, activeID string) error {
 	return s.tx(func(tx *sql.Tx) error {
 		if _, err := tx.Exec(`DELETE FROM sessions WHERE id = ?`, sessionID); err != nil {
-			return fmt.Errorf("delete session: %w", err)
+			return fmt.Errorf("delete session %q: %w", sessionID, err)
 		}
 		if _, err := tx.Exec(
 			`UPDATE projects SET active_session_id = ? WHERE id = ?`,
 			activeID, projectID,
 		); err != nil {
-			return fmt.Errorf("update active session: %w", err)
+			return fmt.Errorf("update active session of %q: %w", projectID, err)
 		}
 		return nil
 	})
@@ -86,7 +86,7 @@ func (s *Service) RenameSession(sessionID, label string) error {
 		`UPDATE sessions SET label = ?, label_auto = 0 WHERE id = ?`,
 		label, sessionID,
 	); err != nil {
-		return fmt.Errorf("rename session: %w", err)
+		return fmt.Errorf("rename session %q: %w", sessionID, err)
 	}
 	return nil
 }
@@ -102,11 +102,11 @@ func (s *Service) SetSessionTitle(sessionID, title string) (bool, error) {
 		title, sessionID,
 	)
 	if err != nil {
-		return false, fmt.Errorf("set session title: %w", err)
+		return false, fmt.Errorf("set session %q title: %w", sessionID, err)
 	}
 	n, err := res.RowsAffected()
 	if err != nil {
-		return false, fmt.Errorf("set session title rows: %w", err)
+		return false, fmt.Errorf("set session %q title rows: %w", sessionID, err)
 	}
 	return n > 0, nil
 }
@@ -121,7 +121,7 @@ func (s *Service) SetClaudeSession(sessionID, claudeSessionID string) error {
 		`UPDATE sessions SET claude_session_id = ? WHERE id = ?`,
 		claudeSessionID, sessionID,
 	); err != nil {
-		return fmt.Errorf("set claude session: %w", err)
+		return fmt.Errorf("set claude session on %q: %w", sessionID, err)
 	}
 	return nil
 }
@@ -165,7 +165,7 @@ func (s *Service) SetActiveSession(projectID, sessionID string) error {
 		`UPDATE projects SET active_session_id = ? WHERE id = ?`,
 		sessionID, projectID,
 	); err != nil {
-		return fmt.Errorf("set active session: %w", err)
+		return fmt.Errorf("set active session %q on %q: %w", sessionID, projectID, err)
 	}
 	return nil
 }

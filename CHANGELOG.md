@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- lich keeps a persistent log: `<config-dir>/lich/lich.log` (`lich-dev.log`
+  under `task dev`), structured records with source file:line, rotated at 5MB
+  with one previous generation kept. `LICH_LOG_LEVEL` (`debug`/`warn`/`error`)
+  tunes verbosity. Every RPC failure is recorded with its method name, and the
+  session token never reaches the log. This is the audit trail the future
+  console-less Windows build will rely on.
 - Experimental Windows build (`lich.exe`, `task build:windows`). Terminal
   sessions run under ConPTY, the window opens in Chrome or Edge (found via
   their conventional install paths), shell cards fall back to `COMSPEC`, and

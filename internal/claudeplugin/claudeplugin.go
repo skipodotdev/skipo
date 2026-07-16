@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -96,7 +97,9 @@ func computeStatus(installed bool, installedVer, latestVer string) Status {
 func (s *Service) Install() error {
 	// A repeat marketplace add errors ("already exists"); that is harmless —
 	// the install below is what matters, so only its error is surfaced.
-	_ = s.runClaude("plugin", "marketplace", "add", marketplaceRepo)
+	if err := s.runClaude("plugin", "marketplace", "add", marketplaceRepo); err != nil {
+		slog.Debug("claudeplugin: marketplace add", "err", err)
+	}
 	return s.runClaude("plugin", "install", pluginKey)
 }
 
