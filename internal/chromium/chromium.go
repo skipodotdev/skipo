@@ -5,11 +5,19 @@
 package chromium
 
 import (
+	"embed"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
+	"path/filepath"
 )
+
+//go:embed extension/*
+var extensionFS embed.FS
+
+const extensionDirName = "lich-zoom-extension"
 
 // FindBrowser returns the first Chromium-family binary that resolves, trying
 // this OS's candidates (candidates_unix.go / candidates_windows.go) in
@@ -82,15 +90,41 @@ func darwinBrowserCandidates(getenv func(string) string) []string {
 // frontend's localStorage (lich.* settings), so it must persist across runs.
 // class is the WM_CLASS: the dev shell passes its own so compositor window
 // rules targeting the daily driver never capture the dev window.
-func Args(url, dataDir, class string, extra []string) []string {
+func Args(url, dataDir, class, extensionDir string, extra []string) []string {
 	args := []string{
 		"--app=" + url,
 		"--user-data-dir=" + dataDir,
 		"--class=" + class,
 		"--no-first-run",
 		"--no-default-browser-check",
+		"--disable-extensions-except=" + extensionDir,
+		"--load-extension=" + extensionDir,
 	}
 	return append(args, extra...)
+}
+
+func writeExtension(dataDir string) (string, error) {
+	extensionDir := filepath.Join(dataDir, extensionDirName)
+	if err := os.MkdirAll(extensionDir, 0o700); err != nil {
+		return "", err
+	}
+	entries, err := fs.ReadDir(extensionFS, "extension")
+	if err != nil {
+		return "", err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		data, err := extensionFS.ReadFile("extension/" + entry.Name())
+		if err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(filepath.Join(extensionDir, entry.Name()), data, 0o600); err != nil {
+			return "", err
+		}
+	}
+	return extensionDir, nil
 }
 
 // Run opens the window and blocks until the user closes it — the browser
@@ -104,7 +138,11 @@ func Run(url, dataDir, class string, extra []string) error {
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		return fmt.Errorf("chromium profile dir: %w", err)
 	}
-	cmd := exec.Command(browser, Args(url, dataDir, class, extra)...)
+	extensionDir, err := writeExtension(dataDir)
+	if err != nil {
+		return fmt.Errorf("chromium extension: %w", err)
+	}
+	cmd := exec.Command(browser, Args(url, dataDir, class, extensionDir, extra)...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Start(); err != nil {

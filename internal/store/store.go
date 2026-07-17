@@ -4,9 +4,9 @@
 // terminal content — only the metadata needed to restore the workspace after a
 // restart.
 //
-// UI-only preferences (font, theme, zoom) intentionally stay in the frontend's
+// UI-only preferences (font, theme) intentionally stay in the frontend's
 // localStorage: they need synchronous access on first paint and the backend
-// never reads them.
+// never reads them. Chromium owns page zoom through its profile.
 package store
 
 import (

@@ -8,18 +8,16 @@ import {
 import type { ReactNode } from "react"
 import {
   DEFAULT_HOTKEYS,
-  isRecordingTarget,
   loadHotkeys,
-  matchesCombo,
   saveHotkeys,
   type Combo,
   type HotkeyId,
   type Hotkeys,
 } from "./hotkeys"
+import { getNativeZoom, onNativeZoomChange, setNativeZoom } from "./native-zoom"
 
 const FONT_STORAGE_KEY = "lich.terminal.font"
 const THEME_STORAGE_KEY = "lich.appearance.theme"
-const ZOOM_STORAGE_KEY = "lich.appearance.zoom"
 const TERMINAL_THEME_STORAGE_KEY = "lich.appearance.terminalTheme"
 
 // DEFAULT_FONT is the bundled FiraCode Nerd Font Mono. It is not installed via
@@ -64,11 +62,6 @@ function readTerminalTheme(): TerminalTheme {
     : DEFAULT_TERMINAL_THEME
 }
 
-function readZoom(): number {
-  const stored = Number(localStorage.getItem(ZOOM_STORAGE_KEY))
-  return Number.isFinite(stored) && stored > 0 ? clampZoom(stored) : DEFAULT_ZOOM
-}
-
 interface SettingsValue {
   /** Terminal font family, applied globally across all project terminals. */
   font: string
@@ -78,9 +71,10 @@ interface SettingsValue {
   setTheme: (theme: Theme) => void
   /** Theme resolved to a concrete scheme (system already mapped to the OS). */
   resolvedTheme: ResolvedTheme
-  /** UI zoom factor applied to the whole app (1 = 100%). */
+  /** Chromium page zoom factor (1 = 100%). */
   zoom: number
   setZoom: (zoom: number) => void
+  zoomAvailable: boolean
   /** Terminal background theme selection. */
   terminalTheme: TerminalTheme
   setTerminalTheme: (theme: TerminalTheme) => void
@@ -100,7 +94,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   )
   const [theme, setThemeState] = useState<Theme>(readTheme)
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light")
-  const [zoom, setZoomState] = useState<number>(readZoom)
+  const [zoom, setZoomState] = useState<number>(DEFAULT_ZOOM)
+  const [zoomAvailable, setZoomAvailable] = useState(false)
   const [terminalTheme, setTerminalThemeState] =
     useState<TerminalTheme>(readTerminalTheme)
   const [hotkeys, setHotkeys] = useState<Hotkeys>(loadHotkeys)
@@ -118,16 +113,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setZoom = useCallback((next: number) => {
     const clamped = clampZoom(next)
     setZoomState(clamped)
-    localStorage.setItem(ZOOM_STORAGE_KEY, String(clamped))
-  }, [])
-
-  // zoomBy applies a relative step off the latest value so rapid wheel ticks
-  // accumulate instead of collapsing to a single step between renders.
-  const zoomBy = useCallback((delta: number) => {
-    setZoomState((prev) => {
-      const clamped = clampZoom(prev + delta)
-      localStorage.setItem(ZOOM_STORAGE_KEY, String(clamped))
-      return clamped
+    setNativeZoom(clamped).then((applied) => {
+      setZoomState(clampZoom(applied))
+      setZoomAvailable(true)
+    }).catch(() => {
+      setZoomAvailable(false)
     })
   }, [])
 
@@ -167,48 +157,29 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener("change", apply)
   }, [theme])
 
-  // Scale the whole app. `zoom` reflows layout (unlike transform: scale). It
-  // also scales the terminal canvas (slightly soft off 100%); a chrome-only
-  // wrapper excluding TerminalHost would avoid that if it becomes an issue.
+  // The Chromium extension owns page zoom. The React app only reflects it so the
+  // settings buttons can drive native browser zoom without CSS scaling hacks.
   useEffect(() => {
-    document.documentElement.style.zoom = String(zoom)
-  }, [zoom])
-
-  // Zoom via keyboard chords or Ctrl/Cmd + mouse wheel. Both listen on the
-  // capture phase so they win even inside a terminal, which otherwise swallows
-  // modifier chords and wheel events; propagation is stopped so the PTY never
-  // sees them. The wheel listener is non-passive to allow preventDefault, and
-  // bails on non-Ctrl scrolls so normal scrolling still works.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (isRecordingTarget(event)) return
-      if (matchesCombo(event, hotkeys.zoomIn)) {
-        event.preventDefault()
-        event.stopPropagation()
-        zoomBy(ZOOM_STEP)
-      } else if (matchesCombo(event, hotkeys.zoomOut)) {
-        event.preventDefault()
-        event.stopPropagation()
-        zoomBy(-ZOOM_STEP)
-      } else if (matchesCombo(event, hotkeys.zoomReset)) {
-        event.preventDefault()
-        event.stopPropagation()
-        setZoom(DEFAULT_ZOOM)
-      }
+    let cancelled = false
+    const refreshZoom = () => {
+      getNativeZoom().then((current) => {
+        if (cancelled) return
+        setZoomState(clampZoom(current))
+        setZoomAvailable(true)
+      }).catch(() => {
+        if (!cancelled) setZoomAvailable(false)
+      })
     }
-    const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) return
-      event.preventDefault()
-      event.stopPropagation()
-      zoomBy(event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP)
-    }
-    window.addEventListener("keydown", onKey, true)
-    window.addEventListener("wheel", onWheel, { capture: true, passive: false })
+    refreshZoom()
+    const unsubscribe = onNativeZoomChange((current) => {
+      setZoomState(clampZoom(current))
+      setZoomAvailable(true)
+    })
     return () => {
-      window.removeEventListener("keydown", onKey, true)
-      window.removeEventListener("wheel", onWheel, true)
+      cancelled = true
+      unsubscribe()
     }
-  }, [zoomBy, setZoom, hotkeys])
+  }, [])
 
   const resolvedTerminalTheme: ResolvedTheme =
     terminalTheme === "match" ? resolvedTheme : terminalTheme
@@ -223,6 +194,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         resolvedTheme,
         zoom,
         setZoom,
+        zoomAvailable,
         terminalTheme,
         setTerminalTheme,
         resolvedTerminalTheme,

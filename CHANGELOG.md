@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Interface zoom now uses Chromium's native page zoom instead of applying CSS
+  `zoom` to the app root. Lich no longer intercepts Chromium zoom shortcuts or
+  wheel zoom, avoiding clipped layouts after zooming, while the Appearance zoom
+  buttons drive Chromium through a bundled extension bridge.
+
 ## [0.7.0] - 2026-07-16
 
 ### Added

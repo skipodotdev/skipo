@@ -33,6 +33,7 @@ export function AppearanceSettings() {
     setTheme,
     zoom,
     setZoom,
+    zoomAvailable,
     terminalTheme,
     setTerminalTheme,
   } = useSettings()
@@ -51,14 +52,14 @@ export function AppearanceSettings() {
       <SettingBlock
         icon={<ZoomIn className="size-4" />}
         title="Interface zoom"
-        description="Increases or decreases the size of everything in the app (rail, tabs…). You can also use Ctrl + / − or Ctrl + mouse wheel, even inside a terminal."
+        description="Controls Chromium page zoom. Native shortcuts like Ctrl/Cmd +/- and Ctrl + mouse wheel are handled by Chromium."
       >
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
             size="icon"
             aria-label="Zoom out"
-            disabled={zoom <= ZOOM_MIN}
+            disabled={!zoomAvailable || zoom <= ZOOM_MIN}
             onClick={() => setZoom(zoom - ZOOM_STEP)}
           >
             <ZoomOut />
@@ -70,14 +71,14 @@ export function AppearanceSettings() {
             variant="outline"
             size="icon"
             aria-label="Zoom in"
-            disabled={zoom >= ZOOM_MAX}
+            disabled={!zoomAvailable || zoom >= ZOOM_MAX}
             onClick={() => setZoom(zoom + ZOOM_STEP)}
           >
             <ZoomIn />
           </Button>
           <Button
             variant="ghost"
-            disabled={zoom === DEFAULT_ZOOM}
+            disabled={!zoomAvailable || zoom === DEFAULT_ZOOM}
             onClick={() => setZoom(DEFAULT_ZOOM)}
           >
             <RotateCcw />

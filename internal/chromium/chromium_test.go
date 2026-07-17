@@ -2,6 +2,8 @@ package chromium
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
 	"slices"
 	"testing"
 )
@@ -117,11 +119,13 @@ func TestDarwinBrowserCandidatesNoHome(t *testing.T) {
 }
 
 func TestArgs(t *testing.T) {
-	args := Args("http://127.0.0.1:47821/?token=x", "/home/u/.config/lich/chromium-profile", "lichdev", []string{"--ozone-platform=wayland"})
+	args := Args("http://127.0.0.1:47821/?token=x", "/home/u/.config/lich/chromium-profile", "lichdev", "/home/u/.config/lich/chromium-profile/lich-zoom-extension", []string{"--ozone-platform=wayland"})
 	for _, want := range []string{
 		"--app=http://127.0.0.1:47821/?token=x",
 		"--user-data-dir=/home/u/.config/lich/chromium-profile",
 		"--class=lichdev",
+		"--disable-extensions-except=/home/u/.config/lich/chromium-profile/lich-zoom-extension",
+		"--load-extension=/home/u/.config/lich/chromium-profile/lich-zoom-extension",
 		"--ozone-platform=wayland",
 	} {
 		if !slices.Contains(args, want) {
@@ -130,5 +134,21 @@ func TestArgs(t *testing.T) {
 	}
 	if args[len(args)-1] != "--ozone-platform=wayland" {
 		t.Fatalf("extra args must come last: %v", args)
+	}
+}
+
+func TestWriteExtension(t *testing.T) {
+	dir, err := writeExtension(t.TempDir())
+	if err != nil {
+		t.Fatalf("writeExtension() error = %v", err)
+	}
+	for _, name := range []string{"manifest.json", "background.js", "content.js"} {
+		data, err := os.ReadFile(filepath.Join(dir, name))
+		if err != nil {
+			t.Fatalf("extension file %q was not written: %v", name, err)
+		}
+		if len(data) == 0 {
+			t.Fatalf("extension file %q is empty", name)
+		}
 	}
 }

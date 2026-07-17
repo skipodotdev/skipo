@@ -27,10 +27,6 @@ describe("matchesCombo", () => {
     expect(matchesCombo(key({ metaKey: true, shiftKey: true, key: "T" }), newSession)).toBe(true)
   })
 
-  it("folds = into + so unshifted zoom-in matches", () => {
-    expect(matchesCombo(key({ ctrlKey: true, key: "=" }), DEFAULT_HOTKEYS.zoomIn)).toBe(true)
-  })
-
   it("rejects when a modifier differs", () => {
     expect(matchesCombo(key({ ctrlKey: true, key: "T" }), newSession)).toBe(false) // no shift
     expect(matchesCombo(key({ shiftKey: true, key: "T" }), newSession)).toBe(false) // no mod
@@ -86,7 +82,6 @@ describe("mergeHotkeys", () => {
   it("layers a valid override over the defaults", () => {
     const override = { newSession: { mod: true, shift: false, alt: true, key: "n" } }
     expect(mergeHotkeys(override).newSession).toEqual(override.newSession)
-    expect(mergeHotkeys(override).zoomIn).toEqual(DEFAULT_HOTKEYS.zoomIn)
   })
 
   it("drops malformed entries and non-objects", () => {
@@ -98,7 +93,7 @@ describe("mergeHotkeys", () => {
 
 describe("sameCombo", () => {
   it("compares every field", () => {
-    expect(sameCombo(DEFAULT_HOTKEYS.zoomIn, DEFAULT_HOTKEYS.zoomIn)).toBe(true)
-    expect(sameCombo(DEFAULT_HOTKEYS.zoomIn, DEFAULT_HOTKEYS.zoomOut)).toBe(false)
+    expect(sameCombo(DEFAULT_HOTKEYS.newSession, DEFAULT_HOTKEYS.newSession)).toBe(true)
+    expect(sameCombo(DEFAULT_HOTKEYS.newSession, { ...DEFAULT_HOTKEYS.newSession, key: "n" })).toBe(false)
   })
 })
