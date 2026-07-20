@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Session cards follow the terminal's working directory: a `cd` in the session
+  moves the card's path line — and with it the git branch, diff badge and PR
+  badge, which reflect whatever directory is shown. The backend polls the PTY
+  child's cwd every 2s — `/proc` on Linux, `proc_pidinfo` on macOS, a PEB read
+  on Windows — and reports changes over the existing events channel; a failed
+  read keeps the start path. Nothing is persisted: a respawned session reports
+  its start directory again and the card resets with it.
+
 - A read-only **Code** tab in the terminal's right dock: a tree of the active
   session's tracked files (`git ls-files`, so `.gitignore` is honoured and only
   versioned files appear — no `node_modules`, no build output) with an in-dock
