@@ -238,6 +238,7 @@ export function SessionSidebar() {
                 }}
                 onClose={() => requestClose(session)}
                 onRename={(label) => renameSession(projectId, session.id, label)}
+                onOpenTerminal={(cwd) => newSession(projectId, "shell", cwd)}
               />
             ))}
           </SortableContext>
