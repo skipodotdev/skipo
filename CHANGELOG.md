@@ -5,6 +5,21 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- A read-only **Code** tab in the terminal's right dock: a tree of the active
+  session's tracked files (`git ls-files`, so `.gitignore` is honoured and only
+  versioned files appear — no `node_modules`, no build output) with an in-dock
+  preview. Clicking a file opens it in a read-only CodeMirror view; selecting
+  lines and right-clicking injects `path:start-end` (or `@path`) into the
+  session's PTY, the same flow the diff review uses. Files carry their language's
+  icon and folders expand in place. The right dock is now a tabbed panel —
+  **Code** and **Review** — switched from the footer, and it follows the active
+  session, so a worktree session browses its own checkout. Untracked files are
+  not listed (they are invisible to `git ls-files`).
+
 ## [0.8.1] - 2026-07-17
 
 ### Changed
@@ -443,6 +458,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CPU, costing ~40ms per frame in a full-size window. Under Xwayland typing is
   stall-free at full frame rate.
 
+[Unreleased]: https://github.com/omartelo/lich/compare/v0.8.1...HEAD
 [0.8.1]: https://github.com/omartelo/lich/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/omartelo/lich/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/omartelo/lich/compare/v0.6.0...v0.7.0
