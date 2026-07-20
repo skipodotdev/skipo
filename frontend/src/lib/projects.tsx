@@ -50,8 +50,8 @@ interface ProjectsValue {
   /** Close a project's tab (kept in the store so it can be reopened later). */
   closeProject: (id: string) => void
   /** Open a new session in a project and focus it, returning its id. Kind
-   * defaults to Claude Code. */
-  newSession: (projectId: string, kind?: SessionKind) => string
+   * defaults to Claude Code; path defaults to the project's own directory. */
+  newSession: (projectId: string, kind?: SessionKind, path?: string) => string
   /** Open a Claude Code session rooted at a git worktree, labeled after it. */
   newWorktreeSession: (projectId: string, wt: { name: string; path: string }) => void
   /** Permanently delete a session; deleting the last one recreates an empty one. */
@@ -242,13 +242,13 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     [projects, activeProjectId, navigate],
   )
 
-  const newSession = useCallback((projectId: string, kind: SessionKind = "claude") => {
+  const newSession = useCallback((projectId: string, kind: SessionKind = "claude", path = "") => {
     const sessionId = newSessionId()
-    const next = addSession(sessionsRef.current, projectId, sessionId, kind)
+    const next = addSession(sessionsRef.current, projectId, sessionId, kind, path)
     const project = next[projectId]
     const created = project.sessions[project.sessions.length - 1]
     setSessions(next)
-    void Store.AddSession(projectId, sessionId, created.label, kind, "", project.nextSeq)
+    void Store.AddSession(projectId, sessionId, created.label, kind, path, project.nextSeq)
     return sessionId
   }, [])
 

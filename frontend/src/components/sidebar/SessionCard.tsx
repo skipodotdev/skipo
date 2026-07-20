@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 import type {KeyboardEvent} from "react"
-import {GitBranch, GitPullRequestArrow, Pencil, X} from "lucide-react"
+import {GitBranch, GitPullRequestArrow, Pencil, Terminal, X} from "lucide-react"
 import {useSortable} from "@dnd-kit/sortable"
 import {CSS} from "@dnd-kit/utilities"
 import {cn} from "@/lib/utils"
@@ -30,6 +30,10 @@ interface SessionCardProps {
   onSelect: () => void
   onClose: () => void
   onRename: (label: string) => void
+  // Open a shell session rooted at this card's shown directory. Wired only for
+  // agent sessions, so the user can drop into a terminal in the worktree the
+  // agent is working in without cd-ing there by hand.
+  onOpenTerminal: (cwd: string) => void
 }
 
 // SessionCard is one session entry: a card showing the session label, the
@@ -43,6 +47,7 @@ export function SessionCard({
                               onSelect,
                               onClose,
                               onRename,
+                              onOpenTerminal,
                             }: SessionCardProps) {
   const pathRef = useRef<HTMLSpanElement>(null)
   const [pathOverflow, setPathOverflow] = useState(false)
@@ -244,6 +249,12 @@ export function SessionCard({
             <Pencil/>
             Rename
           </ContextMenuItem>
+          {session.kind !== "shell" && (
+            <ContextMenuItem onClick={() => onOpenTerminal(shownPath)}>
+              <Terminal/>
+              Open Terminal
+            </ContextMenuItem>
+          )}
           <ContextMenuSeparator/>
           <ContextMenuItem variant="destructive" onClick={onClose}>
             <X/>
