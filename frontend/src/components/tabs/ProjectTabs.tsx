@@ -7,6 +7,7 @@ import {Button} from "@/components/ui/button"
 import {useProjects} from "@/lib/projects"
 import {sessionsOf} from "@/lib/sessions"
 import {openSettings} from "@/lib/settings-card-store"
+import {NotificationsButton} from "./NotificationsButton"
 import {useSortableList} from "@/lib/use-sortable-list"
 import {ProjectTab} from "./ProjectTab"
 import {HomeTab} from "./HomeTab"
@@ -67,6 +68,7 @@ export function ProjectTabs() {
           <Plus className="size-4"/>
         </Button>
       </div>
+      <NotificationsButton/>
       <Button
         variant="ghost"
         size="icon-sm"
