@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A **notification queue** in the top strip — a bell beside the settings gear —
+  gathers every session needing attention across all projects into one
+  count-badged list: a session blocked waiting on you, or a turn that finished
+  and you have not seen. Clicking a row routes straight to that session, even in
+  a background project, so you can work in one project and jump to a
+  notification from another without hunting for it. It is the persistent surface
+  for the same signal the attention toast raises transiently (a toast is missed
+  if you are away). A running (`busy`) session is not queued, and a finished
+  turn drops off once its project has been on screen. The queue lives in the
+  page, so a full reload empties it until new events arrive.
+
 ## [0.10.0] - 2026-07-20
 
 ### Added
