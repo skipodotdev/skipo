@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 import { useNavigate } from "react-router-dom"
-import { CornerDownLeft, Folder, Search, Sparkles, SquareTerminal } from "lucide-react"
+import { CornerDownLeft, Folder, Search } from "lucide-react"
 import { useProjects } from "@/lib/projects"
 import { useSettings } from "@/lib/settings"
 import { isRecordingTarget, matchesCombo } from "@/lib/hotkeys"
 import { useSessionStatus } from "@/lib/useSessionStatus"
+import { SessionStatusIcon } from "@/components/sidebar/SessionStatusIcon"
 import { filterPalette, paletteSessions, type PaletteSession } from "@/lib/command-palette"
 import type { Project } from "@/lib/api-types"
-import type { SessionStatus } from "@/lib/session-events"
 import { cn } from "@/lib/utils"
 
 // CommandPalette is the app-wide quick switcher: one shortcut (Ctrl/Cmd+K by
@@ -214,22 +214,14 @@ function SessionRow({
   onRun: () => void
 }) {
   const status = useSessionStatus(session.sessionId)
-  const meta = statusMeta(status)
-  const Icon = session.kind === "shell" ? SquareTerminal : Sparkles
   return (
     <Row selected={selected} onSelect={onSelect} onRun={onRun}>
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      <SessionStatusIcon kind={session.kind} status={status} />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-sm">{session.label}</span>
         <span className="truncate font-mono text-xs text-muted-foreground">
           <span className="text-foreground/70">{session.projectName}</span> · {session.path}
         </span>
-      </span>
-      <span className="flex shrink-0 items-center gap-2 font-mono text-[10px] uppercase text-muted-foreground">
-        <span>{session.kind}</span>
-        {meta && (
-          <span className={cn("rounded-full border px-1.5 py-0.5 lowercase", meta.className)}>{meta.label}</span>
-        )}
       </span>
     </Row>
   )
@@ -260,19 +252,6 @@ function ProjectRow({
       </span>
     </Row>
   )
-}
-
-function statusMeta(status: SessionStatus | null): { label: string; className: string } | null {
-  switch (status) {
-    case "busy":
-      return { label: "busy", className: "border-sky-400/30 text-sky-400" }
-    case "waiting":
-      return { label: "waiting", className: "border-amber-500/30 text-amber-500" }
-    case "done":
-      return { label: "done", className: "border-emerald-500/30 text-emerald-500" }
-    default:
-      return null
-  }
 }
 
 function Hint({ keys, children }: { keys: string[]; children: React.ReactNode }) {
