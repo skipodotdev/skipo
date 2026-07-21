@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **lich is on the AUR.** `yay -S lich-bin` (or `paru -S lich-bin`) installs
+  the released binary; every release now pushes the updated PKGBUILD to the
+  AUR automatically.
+
 ## [0.11.1] - 2026-07-21
 
 ### Fixed
