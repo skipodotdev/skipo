@@ -30,17 +30,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps a capped tail of each session's output and replays it into the terminal
   on reconnect, so a reload restores what you were looking at. The tail is
   bounded (2 MB per session), so very old scrollback still ages out.
-
-### Changed
-
-- **The update check now repeats hourly, not just at startup.** A session left
-  open for a long time now notices a new lich release mid-run instead of only on
-  the next launch. The poll never stacks a second toast for a release it already
-  surfaced, and dismissing one still holds until a genuinely newer version
-  ships. Hourly keeps well within the unauthenticated GitHub API's rate limit.
-
-### Added
-
 - **Launching lich twice now focuses the open window** instead of failing. The
   second process detects the running instance holding the pinned port (via
   `runtime.json` and a token-gated liveness ping) and hands its URL to Chromium,
@@ -60,6 +49,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own terminal already shows the state — nor is a running (`busy`) one; a
   finished turn drops off once it has been seen. The queue lives in the page, so
   a full reload empties it until new events arrive.
+
+### Changed
+
+- **The update check now repeats hourly, not just at startup.** A session left
+  open for a long time now notices a new lich release mid-run instead of only on
+  the next launch. The poll never stacks a second toast for a release it already
+  surfaced, and dismissing one still holds until a genuinely newer version
+  ships. Hourly keeps well within the unauthenticated GitHub API's rate limit.
 
 ## [0.10.0] - 2026-07-20
 
