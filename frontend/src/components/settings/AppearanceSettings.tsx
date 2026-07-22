@@ -68,7 +68,7 @@ export function AppearanceSettings() {
       <SettingBlock
         icon={<ZoomIn className="size-4" />}
         title="Interface zoom"
-        description="Scales the app's interface — rail, tabs, sidebar, footer. The terminal is not affected: its text has its own size below, so zooming never rewraps a running session. You can also use Ctrl/Cmd + / − / 0 or Ctrl + mouse wheel, even inside a terminal."
+        description="Scales the interface."
       >
         <div className="flex items-center gap-2">
           <Button
@@ -119,7 +119,7 @@ export function AppearanceSettings() {
       <SettingBlock
         icon={<CaseSensitive className="size-4" />}
         title="Terminal text size"
-        description="Size of the terminal's text, in pixels. Unlike interface zoom this does resize the grid, so a running session is told about the new width and height."
+        description="Scales the terminal."
       >
         <div className="flex items-center gap-2">
           <Button
