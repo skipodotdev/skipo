@@ -3,12 +3,12 @@
 // platform primary modifier — Ctrl on Windows/Linux, Cmd on macOS — so a single
 // stored combo works on both.
 
+// Zoom is deliberately absent: those chords shadow Chromium's own accelerators,
+// which are bound to physical keys, so they are matched on event.code in
+// zoom-keys.ts instead of being character combos a user can rebind.
 export type HotkeyId =
   | "commandPalette"
   | "newSession"
-  | "zoomIn"
-  | "zoomOut"
-  | "zoomReset"
 
 export interface Combo {
   mod: boolean
@@ -27,9 +27,6 @@ export interface HotkeyAction {
 export const HOTKEY_ACTIONS: readonly HotkeyAction[] = [
   { id: "commandPalette", label: "Command palette", combo: { mod: true, shift: false, alt: false, key: "k" } },
   { id: "newSession", label: "New session", combo: { mod: true, shift: true, alt: false, key: "t" } },
-  { id: "zoomIn", label: "Zoom in", combo: { mod: true, shift: false, alt: false, key: "+" } },
-  { id: "zoomOut", label: "Zoom out", combo: { mod: true, shift: false, alt: false, key: "-" } },
-  { id: "zoomReset", label: "Reset zoom", combo: { mod: true, shift: false, alt: false, key: "0" } },
 ]
 
 export type Hotkeys = Record<HotkeyId, Combo>
@@ -49,6 +46,9 @@ const STORAGE_KEY = "lich.hotkeys"
 
 // normalizeKey folds "=" into "+" (same physical key) and lowercases single
 // characters so casing from Shift does not change the identity of the combo.
+// Folding a character pair like this is a patch over event.key being layout- and
+// Shift-dependent; it is kept because combos recorded before are persisted with
+// "+", but the real answer for a physical key is event.code (see zoom-keys.ts).
 function normalizeKey(key: string): string {
   if (key === "=") return "+"
   return key.length === 1 ? key.toLowerCase() : key

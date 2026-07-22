@@ -10,14 +10,15 @@ import {
   DEFAULT_HOTKEYS,
   isRecordingTarget,
   loadHotkeys,
-  matchesCombo,
   saveHotkeys,
   type Combo,
   type HotkeyId,
   type Hotkeys,
 } from "./hotkeys"
+import { zoomIntent } from "./zoom-keys"
 
 const FONT_STORAGE_KEY = "lich.terminal.font"
+const TERMINAL_FONT_SIZE_STORAGE_KEY = "lich.terminal.fontSize"
 const THEME_STORAGE_KEY = "lich.appearance.theme"
 const ZOOM_STORAGE_KEY = "lich.appearance.zoom"
 const TERMINAL_THEME_STORAGE_KEY = "lich.appearance.terminalTheme"
@@ -52,6 +53,30 @@ export function clampZoom(value: number): number {
   return Math.round(bounded * 10) / 10
 }
 
+// Terminal text size, in absolute px. It is deliberately not part of the app
+// zoom: zoom rescales the chrome in rem, and the terminal stays out of it so a
+// zoom step never changes the PTY's cols×rows and never rewraps a running TUI.
+// Changing this one does resize the grid — that is the point of it.
+export const TERMINAL_FONT_SIZE_MIN = 8
+export const TERMINAL_FONT_SIZE_MAX = 32
+export const TERMINAL_FONT_SIZE_STEP = 1
+export const DEFAULT_TERMINAL_FONT_SIZE = 14
+
+export function clampTerminalFontSize(value: number): number {
+  const bounded = Math.min(
+    TERMINAL_FONT_SIZE_MAX,
+    Math.max(TERMINAL_FONT_SIZE_MIN, value),
+  )
+  return Math.round(bounded)
+}
+
+function readTerminalFontSize(): number {
+  const stored = Number(localStorage.getItem(TERMINAL_FONT_SIZE_STORAGE_KEY))
+  return Number.isFinite(stored) && stored > 0
+    ? clampTerminalFontSize(stored)
+    : DEFAULT_TERMINAL_FONT_SIZE
+}
+
 function readTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY)
   return THEMES.includes(stored as Theme) ? (stored as Theme) : DEFAULT_THEME
@@ -73,6 +98,9 @@ interface SettingsValue {
   /** Terminal font family, applied globally across all project terminals. */
   font: string
   setFont: (font: string) => void
+  /** Terminal text size in px. Independent of `zoom` — see the constants. */
+  terminalFontSize: number
+  setTerminalFontSize: (size: number) => void
   /** Color theme applied to the whole app via the `.dark` class on <html>. */
   theme: Theme
   setTheme: (theme: Theme) => void
@@ -98,6 +126,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [font, setFontState] = useState<string>(
     () => localStorage.getItem(FONT_STORAGE_KEY) ?? DEFAULT_FONT,
   )
+  const [terminalFontSize, setTerminalFontSizeState] =
+    useState<number>(readTerminalFontSize)
   const [theme, setThemeState] = useState<Theme>(readTheme)
   const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>("light")
   const [zoom, setZoomState] = useState<number>(readZoom)
@@ -108,6 +138,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const setFont = useCallback((next: string) => {
     setFontState(next)
     localStorage.setItem(FONT_STORAGE_KEY, next)
+  }, [])
+
+  const setTerminalFontSize = useCallback((next: number) => {
+    const clamped = clampTerminalFontSize(next)
+    setTerminalFontSizeState(clamped)
+    localStorage.setItem(TERMINAL_FONT_SIZE_STORAGE_KEY, String(clamped))
   }, [])
 
   const setTheme = useCallback((next: Theme) => {
@@ -167,34 +203,46 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     return () => media.removeEventListener("change", apply)
   }, [theme])
 
-  // Scale the whole app. `zoom` reflows layout (unlike transform: scale). It
-  // also scales the terminal canvas (slightly soft off 100%); a chrome-only
-  // wrapper excluding TerminalHost would avoid that if it becomes an issue.
+  // Scale the app by moving the root font size: every Tailwind spacing and type
+  // utility resolves in rem (--spacing is 0.25rem, --text-* are rem), so one
+  // percentage rescales the whole chrome and reflows it honestly.
+  //
+  // A percentage, not a px value, so a user who raised Chromium's default font
+  // size keeps that as their 100%.
+  //
+  // This deliberately replaces CSS `zoom` on the root, which had two flaws:
+  // `zoom` does not scale vh/vw, so the 100vh/100vw root rendered at viewport ×
+  // zoom (window left showing through when zoomed out, layout cut by the page's
+  // overflow:hidden when zoomed in); and it scaled the terminal along with
+  // everything else, which — once the root filled the window — handed the
+  // terminal more CSS pixels and reflowed the PTY to a different cols×rows on
+  // every zoom step, wrapping whatever TUI was running. The terminal sizes its
+  // text in absolute px (TerminalView's fontSize), so rem scaling leaves it
+  // untouched by construction; its size is its own setting.
   useEffect(() => {
-    document.documentElement.style.zoom = String(zoom)
+    document.documentElement.style.fontSize = `${zoom * 100}%`
   }, [zoom])
 
   // Zoom via keyboard chords or Ctrl/Cmd + mouse wheel. Both listen on the
   // capture phase so they win even inside a terminal, which otherwise swallows
   // modifier chords and wheel events; propagation is stopped so the PTY never
-  // sees them. The wheel listener is non-passive to allow preventDefault, and
-  // bails on non-Ctrl scrolls so normal scrolling still works.
+  // sees them. Both also preventDefault, which is what keeps Chromium's own
+  // zoom accelerator from running on top of this one — miss that on any single
+  // chord and the app and the browser each apply a zoom (see zoom-keys.ts).
+  // The wheel listener is non-passive to allow preventDefault, and bails on
+  // non-Ctrl scrolls so normal scrolling still works.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (isRecordingTarget(event)) return
-      if (matchesCombo(event, hotkeys.zoomIn)) {
-        event.preventDefault()
-        event.stopPropagation()
-        zoomBy(ZOOM_STEP)
-      } else if (matchesCombo(event, hotkeys.zoomOut)) {
-        event.preventDefault()
-        event.stopPropagation()
-        zoomBy(-ZOOM_STEP)
-      } else if (matchesCombo(event, hotkeys.zoomReset)) {
-        event.preventDefault()
-        event.stopPropagation()
+      const intent = zoomIntent(event)
+      if (!intent) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (intent === "reset") {
         setZoom(DEFAULT_ZOOM)
+        return
       }
+      zoomBy(intent === "in" ? ZOOM_STEP : -ZOOM_STEP)
     }
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey) return
@@ -208,7 +256,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("keydown", onKey, true)
       window.removeEventListener("wheel", onWheel, true)
     }
-  }, [zoomBy, setZoom, hotkeys])
+  }, [zoomBy, setZoom])
 
   const resolvedTerminalTheme: ResolvedTheme =
     terminalTheme === "match" ? resolvedTheme : terminalTheme
@@ -218,6 +266,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       value={{
         font,
         setFont,
+        terminalFontSize,
+        setTerminalFontSize,
         theme,
         setTheme,
         resolvedTheme,
