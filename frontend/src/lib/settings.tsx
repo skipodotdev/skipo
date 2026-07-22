@@ -10,12 +10,12 @@ import {
   DEFAULT_HOTKEYS,
   isRecordingTarget,
   loadHotkeys,
-  matchesCombo,
   saveHotkeys,
   type Combo,
   type HotkeyId,
   type Hotkeys,
 } from "./hotkeys"
+import { zoomIntent } from "./zoom-keys"
 
 const FONT_STORAGE_KEY = "lich.terminal.font"
 const THEME_STORAGE_KEY = "lich.appearance.theme"
@@ -177,24 +177,23 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Zoom via keyboard chords or Ctrl/Cmd + mouse wheel. Both listen on the
   // capture phase so they win even inside a terminal, which otherwise swallows
   // modifier chords and wheel events; propagation is stopped so the PTY never
-  // sees them. The wheel listener is non-passive to allow preventDefault, and
-  // bails on non-Ctrl scrolls so normal scrolling still works.
+  // sees them. Both also preventDefault, which is what keeps Chromium's own
+  // zoom accelerator from running on top of this one — miss that on any single
+  // chord and the app and the browser each apply a zoom (see zoom-keys.ts).
+  // The wheel listener is non-passive to allow preventDefault, and bails on
+  // non-Ctrl scrolls so normal scrolling still works.
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (isRecordingTarget(event)) return
-      if (matchesCombo(event, hotkeys.zoomIn)) {
-        event.preventDefault()
-        event.stopPropagation()
-        zoomBy(ZOOM_STEP)
-      } else if (matchesCombo(event, hotkeys.zoomOut)) {
-        event.preventDefault()
-        event.stopPropagation()
-        zoomBy(-ZOOM_STEP)
-      } else if (matchesCombo(event, hotkeys.zoomReset)) {
-        event.preventDefault()
-        event.stopPropagation()
+      const intent = zoomIntent(event)
+      if (!intent) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (intent === "reset") {
         setZoom(DEFAULT_ZOOM)
+        return
       }
+      zoomBy(intent === "in" ? ZOOM_STEP : -ZOOM_STEP)
     }
     const onWheel = (event: WheelEvent) => {
       if (!event.ctrlKey) return
@@ -208,7 +207,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       window.removeEventListener("keydown", onKey, true)
       window.removeEventListener("wheel", onWheel, true)
     }
-  }, [zoomBy, setZoom, hotkeys])
+  }, [zoomBy, setZoom])
 
   const resolvedTerminalTheme: ResolvedTheme =
     terminalTheme === "match" ? resolvedTheme : terminalTheme

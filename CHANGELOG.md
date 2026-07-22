@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **Zoom no longer applies twice.** `Ctrl +` is physically `Ctrl+Shift+=` on
+  every common layout, but the shortcut was declared as the character `"+"` with
+  Shift explicitly off — a combination no keyboard can produce. Zoom in therefore
+  never matched, nothing called `preventDefault()`, and Chromium ran its own zoom
+  accelerator, while zoom out (`Ctrl −`, no Shift needed) matched and scaled the
+  app instead. Two zooms, disagreeing with each other and with the Appearance
+  buttons, and clipped layouts once they compounded. Zoom chords are now matched
+  on the physical key (`event.code`), which is the same on every layout, so the
+  app is the only thing that zooms. The numpad keys work too.
+
+### Removed
+
+- **The `Zoom in`, `Zoom out` and `Reset zoom` entries from configurable
+  hotkeys.** These chords exist to shadow Chromium's built-in accelerators, and
+  an accelerator is bound to a physical key rather than to a character, so they
+  cannot be expressed as a rebindable character combo — that mismatch was the bug
+  above. Any custom binding saved for them is ignored on load; every other hotkey
+  is untouched and still configurable.
+
 ## [0.12.0] - 2026-07-21
 
 ### Changed
