@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-07-23
+
+### Added
+
+- **Terminal text size is now its own setting** (Appearance › Terminal text
+  size, 8–32px, persisted). Interface zoom no longer touches the terminal, so
+  this is the control for how big terminal text is — and, unlike zoom, changing
+  it does change how much fits on screen, so a running session reflows to the
+  new width.
+
+### Changed
+
+- **Interface zoom now scales only the interface.** It used to scale the
+  terminal along with everything else, which handed the terminal a different
+  amount of room at every zoom step and re-wrapped whatever was running in it —
+  a TUI mid-session would rewrap and its scrollback would keep the old wrap.
+  Zoom now moves the interface (rail, tabs, sidebar, footer, dialogs) and leaves
+  the terminal grid exactly where it was; terminal text has its own size setting
+  above.
+
 ### Fixed
 
 - **Zoom no longer applies twice.** `Ctrl +` is physically `Ctrl+Shift+=` on
@@ -18,13 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   buttons, and clipped layouts once they compounded. Zoom chords are now matched
   on the physical key (`event.code`), which is the same on every layout, so the
   app is the only thing that zooms. The numpad keys work too.
-- **Zooming no longer leaves the window part-empty or cuts the layout off.** CSS
-  `zoom` scales rendered boxes but leaves `vh`/`vw` as physical viewport units,
-  so the `100vh`/`100vw` app root rendered at viewport × zoom: short of the window
-  when zoomed out, overflowing when zoomed in — and the page's `overflow: hidden`
-  cut the overflow instead of scrolling it. The root now divides the viewport by
-  the zoom factor first, and the dialogs and command palette that size themselves
-  in `vh` use the same corrected unit.
+- **Zooming no longer leaves the window part-empty or cuts the layout off.** The
+  app scaled itself with CSS `zoom`, which scales rendered boxes but leaves
+  `vh`/`vw` as physical viewport units, so the `100vh`/`100vw` app root rendered
+  at viewport × zoom: short of the window when zoomed out, overflowing when
+  zoomed in — and the page's `overflow: hidden` cut the overflow instead of
+  scrolling it. Scaling now moves the root font size instead, which every
+  interface measurement already follows, so the layout fills exactly one window
+  at any zoom level.
 
 ### Removed
 
@@ -659,7 +680,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   CPU, costing ~40ms per frame in a full-size window. Under Xwayland typing is
   stall-free at full frame rate.
 
-[Unreleased]: https://github.com/omartelo/lich/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/omartelo/lich/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/omartelo/lich/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/omartelo/lich/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/omartelo/lich/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/omartelo/lich/compare/v0.10.0...v0.11.0
