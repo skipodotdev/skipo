@@ -43,6 +43,8 @@ func (b *replayBuffer) append(data []byte) {
 	b.total += len(chunk)
 	for b.total > b.capBytes && len(b.chunks) > 1 {
 		b.total -= len(b.chunks[0])
+		// Reslicing alone keeps the chunk reachable through the backing array.
+		b.chunks[0] = nil
 		b.chunks = b.chunks[1:]
 	}
 }

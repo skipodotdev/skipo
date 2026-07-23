@@ -1,4 +1,5 @@
 import {useEffect, useState} from "react"
+import {toast} from "sonner"
 import {Code, FileText, GitBranch, Folder, Plus, Diff, GitPullRequestArrow} from "lucide-react"
 import {ProjectService, System, Terminal as TerminalService} from "@/lib/rpc"
 import type {DockTab} from "@/components/dock/RightDock"
@@ -50,9 +51,13 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
   const now = useNow()
 
   const attachFile = async () => {
-    const file = await ProjectService.PickFile()
-    if (file && sessionId) {
-      void TerminalService.Write(sessionId, `${file} `)
+    try {
+      const file = await ProjectService.PickFile()
+      if (file && sessionId) {
+        void TerminalService.Write(sessionId, `${file} `)
+      }
+    } catch {
+      toast.error("Could not open the file picker")
     }
   }
 

@@ -386,6 +386,10 @@ export function TerminalView({
       if (!visibleRef.current || !isSearchOpenChord(event)) {
         return
       }
+      const target = event.target as HTMLElement | null
+      if (target?.closest?.('[role="dialog"]')) {
+        return
+      }
       event.preventDefault()
       event.stopPropagation()
       setSearchOpen(true)
@@ -532,44 +536,10 @@ export function TerminalView({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, sessionId])
 
-  // Font changes apply to the live terminal; a hidden one picks the ref up
-  // on recreation.
-  useEffect(() => {
-    const live = liveRef.current
-    if (!live) {
-      return
-    }
-    void (async () => {
-      await ensureFontLoaded(font)
-      live.term.options.fontFamily = `"${font}", monospace`
-      if (containerRef.current) {
-        fitTerminal(live.term, containerRef.current)
-      }
-      if (visibleRef.current) {
-        void Service.Resize(sessionId, live.term.cols, live.term.rows)
-      }
-    })()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [font, sessionId])
-
-  // Text size likewise. Unlike the app zoom this does change the cell size, so
-  // the grid is refit and the PTY told about the new cols×rows.
-  useEffect(() => {
-    const live = liveRef.current
-    if (!live) {
-      return
-    }
-    live.term.options.fontSize = terminalFontSize
-    if (containerRef.current) {
-      fitTerminal(live.term, containerRef.current)
-    }
-    if (visibleRef.current) {
-      void Service.Resize(sessionId, live.term.cols, live.term.rows)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [terminalFontSize, sessionId])
-
-  // Theme changes likewise.
+  // Font family and size need no live-update path: changing them means being
+  // on the Settings route, where TerminalHost destroys every live terminal —
+  // recreation reads the refs. The theme can flip with a terminal on screen
+  // (OS scheme under "system").
   useEffect(() => {
     const live = liveRef.current
     if (live) {

@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Zoom now works on layouts with a dedicated "+" key** (German, for one).
+  The chords matched only the physical Equal/Minus keys, so on those layouts
+  nothing claimed the press and Chromium's own zoom ran instead — the exact
+  double-zoom the physical-key matching was built to prevent. The typed
+  character is now checked as a fallback.
+- **Stale results can no longer outrace fresh ones in the footer badges.** A
+  slow git-status poll resolving late could overwrite the newer status the
+  session hooks had just fetched, and the pull-request badge kept showing the
+  previous directory's PR while the new lookup was in flight.
+- **The command palette reopens clean.** Toggling it closed with the hotkey
+  kept the previous filter and cursor for the next open; and Ctrl+F no longer
+  opens the terminal search box hidden beneath an open palette.
+- **A failing file picker now says so** with an error toast instead of
+  failing silently.
+
 - **The self-update download no longer dies on a normal connection.** The
   binary download shared the 5-second timeout meant for small metadata reads,
   and that timeout covers the whole transfer — so on anything but a very fast

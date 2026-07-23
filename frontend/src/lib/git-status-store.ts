@@ -14,6 +14,8 @@ interface Entry {
   // Fetches this path once, off the interval cadence. Reused for the
   // visibilitychange re-fetch and the store's manual refresh(path).
   refresh: () => void
+  // Monotonic fetch id — only the latest-started fetch may publish.
+  seq: number
 }
 
 const unchanged = (a: GitStatus | null, b: GitStatus | null): boolean =>
@@ -41,11 +43,12 @@ export function createGitStatusStore(fetch: GitStatusFetcher, pollMs: number) {
         if (typeof document !== "undefined" && document.hidden) {
           return
         }
+        const seq = ++created.seq
         void fetch(path).then((next) => {
-          // Drop the result if every subscriber left mid-flight or the status
-          // is identical: same object identity means subscribers skip their
-          // re-render entirely.
-          if (entries.get(path) !== created || unchanged(created.status, next)) {
+          // Drop the result if every subscriber left mid-flight, a newer fetch
+          // started since, or the status is identical: same object identity
+          // means subscribers skip their re-render entirely.
+          if (entries.get(path) !== created || seq !== created.seq || unchanged(created.status, next)) {
             return
           }
           created.status = next
@@ -59,6 +62,7 @@ export function createGitStatusStore(fetch: GitStatusFetcher, pollMs: number) {
         listeners: new Set(),
         timer: setInterval(refresh, pollMs),
         refresh,
+        seq: 0,
       }
       entries.set(path, created)
       if (typeof document !== "undefined") {

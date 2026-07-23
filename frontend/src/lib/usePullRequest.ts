@@ -20,6 +20,7 @@ export function usePullRequest(path: string, branch: string): PullRequest | null
       return
     }
     let alive = true
+    setPr(null)
     const load = () => {
       ProjectService.PullRequest(path)
         .then((result) => {
