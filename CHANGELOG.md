@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **The self-update download no longer dies on a normal connection.** The
+  binary download shared the 5-second timeout meant for small metadata reads,
+  and that timeout covers the whole transfer — so on anything but a very fast
+  link the download was cut mid-stream and self-apply (Windows/macOS) failed
+  every time. The download now gets its own generous ceiling.
+- **A renamed worktree session keeps its name across keep/resume.** Resuming a
+  kept worktree re-created the session with the "automatic title" flag reset,
+  so the next AI-generated title overwrote the name you chose. The flag now
+  survives the park/resume cycle.
+- **Holding a hotkey no longer fires it repeatedly.** Key auto-repeat on
+  Ctrl+Shift+T could spawn a stack of sessions from one held chord (and
+  Ctrl+K would flap the palette); hotkeys now fire once per press.
+- **A failed in-place restart can be retried.** If launching the successor
+  process failed (say, the binary mid-swap by the package manager), the
+  restart coordinator latched anyway and every later `/restart` silently did
+  nothing until the app was relaunched by hand.
+- **Sessions that exit on their own no longer leak their PTY handle**, and
+  closing a session during its spawn round-trip no longer strands the PTY or
+  drops a queued update command.
+
 ## [0.13.0] - 2026-07-23
 
 ### Added

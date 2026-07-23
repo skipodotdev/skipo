@@ -101,8 +101,8 @@ func (s *Service) CloseSession(projectID, sessionID, activeID string) error {
 
 // ReopenWorktreeSession resumes a parked worktree session. It finds the parked
 // (is_open = 0) session for the worktree at path and re-adds it to the workspace
-// under a fresh id (newSessionID), carrying over the old label, kind and Claude
-// session id. The fresh id is deliberate: it makes the frontend treat the card
+// under a fresh id (newSessionID), carrying over the old label, kind, Claude
+// session id and label_auto flag. The fresh id is deliberate: it makes the frontend treat the card
 // as never-spawned, so its resume prompt fires and the Claude conversation
 // continues instead of starting cold. Returns nil when nothing is parked at path
 // — the caller then opens a brand-new session.
@@ -110,14 +110,18 @@ func (s *Service) ReopenWorktreeSession(projectID, path, newSessionID string) (*
 	var restored *Session
 	err := s.tx(func(tx *sql.Tx) error {
 		var old Session
+		// label_auto rides along so a user rename survives the park/resume
+		// cycle — reinserting without it would reset to 1 and let the ai-title
+		// stomp the chosen name, breaking SetSessionTitle's contract.
+		var labelAuto int
 		row := tx.QueryRow(
-			`SELECT id, label, kind, claude_session_id
+			`SELECT id, label, kind, claude_session_id, label_auto
 			   FROM sessions
 			  WHERE project_id = ? AND path = ? AND is_open = 0
 			  ORDER BY rowid DESC LIMIT 1`,
 			projectID, path,
 		)
-		if err := row.Scan(&old.ID, &old.Label, &old.Kind, &old.ClaudeSessionID); err != nil {
+		if err := row.Scan(&old.ID, &old.Label, &old.Kind, &old.ClaudeSessionID, &labelAuto); err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil // nothing parked here; caller creates a new session
 			}
@@ -127,10 +131,10 @@ func (s *Service) ReopenWorktreeSession(projectID, path, newSessionID string) (*
 			return fmt.Errorf("drop parked session %q: %w", old.ID, err)
 		}
 		if _, err := tx.Exec(
-			`INSERT INTO sessions (id, project_id, label, kind, path, claude_session_id, position)
-			 VALUES (?, ?, ?, ?, ?, ?,
+			`INSERT INTO sessions (id, project_id, label, kind, path, claude_session_id, label_auto, position)
+			 VALUES (?, ?, ?, ?, ?, ?, ?,
 			         (SELECT COALESCE(MAX(position), -1) + 1 FROM sessions WHERE project_id = ?))`,
-			newSessionID, projectID, old.Label, old.Kind, path, old.ClaudeSessionID, projectID,
+			newSessionID, projectID, old.Label, old.Kind, path, old.ClaudeSessionID, labelAuto, projectID,
 		); err != nil {
 			return fmt.Errorf("reinsert session %q: %w", newSessionID, err)
 		}

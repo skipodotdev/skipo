@@ -277,6 +277,14 @@ func TestNewResolvesExe(t *testing.T) {
 	if s.version != "0.7.0" {
 		t.Fatalf("version = %q", s.version)
 	}
+	// The asset download must not ride the short metadata timeout: a client
+	// Timeout covers the whole body, and 5s cuts a multi-MiB binary mid-stream.
+	if s.download == nil {
+		t.Fatal("download client not set")
+	}
+	if s.download.Timeout <= s.http.Timeout {
+		t.Fatalf("download timeout = %v, want longer than metadata %v", s.download.Timeout, s.http.Timeout)
+	}
 	if s.latestURL != latestReleaseURL {
 		t.Fatalf("latestURL = %q", s.latestURL)
 	}

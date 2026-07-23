@@ -646,6 +646,38 @@ func TestCloseSessionParksAndReopenRestores(t *testing.T) {
 	}
 }
 
+// TestReopenWorktreeSessionKeepsManualRename proves a user rename survives the
+// park/resume cycle: the reinserted row carries label_auto over, so the ai-title
+// still cannot stomp the chosen name (SetSessionTitle's contract).
+func TestReopenWorktreeSessionKeepsManualRename(t *testing.T) {
+	svc := newTestStore(t)
+	_ = svc.AddProject("p1", "alpha", "/tmp/alpha")
+	_ = svc.AddSession("p1", "base", "Session 1", "claude", "", 2)
+	_ = svc.AddSession("p1", "wt1", "auto name", "claude", "/wt/foo", 3)
+	if err := svc.RenameSession("wt1", "my name"); err != nil {
+		t.Fatalf("RenameSession: %v", err)
+	}
+	if err := svc.CloseSession("p1", "wt1", "base"); err != nil { // park it
+		t.Fatalf("CloseSession: %v", err)
+	}
+
+	restored, err := svc.ReopenWorktreeSession("p1", "/wt/foo", "wt2")
+	if err != nil {
+		t.Fatalf("ReopenWorktreeSession: %v", err)
+	}
+	if restored == nil || restored.Label != "my name" {
+		t.Fatalf("restored = %+v, want the renamed label", restored)
+	}
+
+	changed, err := svc.SetSessionTitle("wt2", "ai title")
+	if err != nil {
+		t.Fatalf("SetSessionTitle: %v", err)
+	}
+	if changed {
+		t.Fatal("SetSessionTitle overwrote a manual rename after park/resume")
+	}
+}
+
 // TestReopenWorktreeSessionNoParked proves resume returns nil when the worktree
 // has no parked session, so the caller opens a fresh one instead.
 func TestReopenWorktreeSessionNoParked(t *testing.T) {
