@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { toast } from "sonner"
 import { useMatch, useNavigate } from "react-router-dom"
@@ -488,29 +488,44 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  return (
-    <ProjectsContext.Provider
-      value={{
-        projects,
-        sessions,
-        homeId,
-        openProject,
-        ensureHomeProject,
-        closeProject,
-        newSession,
-        newWorktreeSession,
-        reopenWorktreeSession,
-        closeSession,
-        keepSession,
-        activateSession,
-        renameSession,
-        reorderProjects,
-        reorderSessions,
-      }}
-    >
-      {children}
-    </ProjectsContext.Provider>
+  const value = useMemo(
+    () => ({
+      projects,
+      sessions,
+      homeId,
+      openProject,
+      ensureHomeProject,
+      closeProject,
+      newSession,
+      newWorktreeSession,
+      reopenWorktreeSession,
+      closeSession,
+      keepSession,
+      activateSession,
+      renameSession,
+      reorderProjects,
+      reorderSessions,
+    }),
+    [
+      projects,
+      sessions,
+      homeId,
+      openProject,
+      ensureHomeProject,
+      closeProject,
+      newSession,
+      newWorktreeSession,
+      reopenWorktreeSession,
+      closeSession,
+      keepSession,
+      activateSession,
+      renameSession,
+      reorderProjects,
+      reorderSessions,
+    ],
   )
+
+  return <ProjectsContext.Provider value={value}>{children}</ProjectsContext.Provider>
 }
 
 export function useProjects(): ProjectsValue {

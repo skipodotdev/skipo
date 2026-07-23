@@ -7,6 +7,7 @@ const press = (over: Partial<ZoomKeyState>): ZoomKeyState => ({
   shiftKey: false,
   altKey: false,
   code: "",
+  key: "",
   ...over,
 })
 
@@ -31,6 +32,13 @@ describe("zoomIntent", () => {
     expect(zoomIntent(press({ ctrlKey: true, code: "NumpadAdd" }))).toBe("in")
     expect(zoomIntent(press({ ctrlKey: true, code: "NumpadSubtract" }))).toBe("out")
     expect(zoomIntent(press({ ctrlKey: true, code: "Numpad0" }))).toBe("reset")
+  })
+
+  it("falls back to the character on layouts whose +/− are dedicated keys", () => {
+    // German: "+" is its own key (code BracketRight) and "-" sits on Slash —
+    // neither code is in the table, but the character says what the press means.
+    expect(zoomIntent(press({ ctrlKey: true, key: "+", code: "BracketRight" }))).toBe("in")
+    expect(zoomIntent(press({ ctrlKey: true, key: "-", code: "Slash" }))).toBe("out")
   })
 
   it("accepts Cmd as the primary modifier", () => {

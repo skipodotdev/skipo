@@ -356,17 +356,35 @@ func scrubPathList(value, dir string) (string, bool) {
 // this card ran before the last restart. An id Claude no longer knows fails in
 // the PTY like any other bad invocation — the user sees Claude's own error.
 func (s *Service) Start(id, projectID, cwd, kind, resume string, cols, rows int) error {
+	sess, cwd, err := s.spawnSession(id, projectID, cwd, kind, resume, cols, rows)
+	if err != nil || sess == nil {
+		return err
+	}
+	// Emitted outside s.mu: Emit blocks on a stalled /events client, which
+	// would freeze every session's I/O. Both are unconditional so a respawn
+	// overwrites whatever the previous PTY left in the frontend's stores.
+	s.hub.Emit(cwdEventName, cwdEvent{ID: id, Cwd: cwd})
+	s.hub.Emit(agentEventName, agentEvent{ID: id, Agent: ""})
+	go watchCwd(id, sess.pty.Pid(), cwd, sess.done, s.hub)
+	return nil
+}
+
+// spawnSession is the locked half of Start: dedupe, PTY spawn and session-map
+// registration. A nil session with a nil error means id was already running.
+// The returned cwd is the effective start directory (the input, or the
+// resolved home when it was empty).
+func (s *Service) spawnSession(id, projectID, cwd, kind, resume string, cols, rows int) (*session, string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, running := s.sessions[id]; running {
-		return nil
+		return nil, "", nil
 	}
 
 	if cwd == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return fmt.Errorf("failed to resolve home directory: %w", err)
+			return nil, "", fmt.Errorf("failed to resolve home directory: %w", err)
 		}
 		cwd = home
 	}
@@ -380,7 +398,7 @@ func (s *Service) Start(id, projectID, cwd, kind, resume string, cols, rows int)
 		rows: rows,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to start pty for %q: %w", id, err)
+		return nil, "", fmt.Errorf("failed to start pty for %q: %w", id, err)
 	}
 
 	out := newCoalescer(func(data []byte) {
@@ -390,17 +408,10 @@ func (s *Service) Start(id, projectID, cwd, kind, resume string, cols, rows int)
 		encoded := base64.StdEncoding.EncodeToString(data)
 		s.hub.Emit(dataEventPrefix+id, encoded)
 	}, visibleFlushInterval, hiddenFlushInterval)
-	done := make(chan struct{})
-	replay := newReplayBuffer(replayCapBytes)
-	s.sessions[id] = &session{pty: p, out: out, done: done, replay: replay}
-	go s.stream(id, p, out, replay)
-	// The start directory and a cleared agent are reported unconditionally so
-	// a respawn overwrites whatever the previous PTY left in the frontend's
-	// stores (a provider session's own agent re-reports via its hook).
-	s.hub.Emit(cwdEventName, cwdEvent{ID: id, Cwd: cwd})
-	s.hub.Emit(agentEventName, agentEvent{ID: id, Agent: ""})
-	go watchCwd(id, p.Pid(), cwd, done, s.hub)
-	return nil
+	sess := &session{pty: p, out: out, done: make(chan struct{}), replay: newReplayBuffer(replayCapBytes)}
+	s.sessions[id] = sess
+	go s.stream(id, p, out, sess.replay)
+	return sess, cwd, nil
 }
 
 // stream copies PTY output to the frontend until the PTY is closed, then reaps

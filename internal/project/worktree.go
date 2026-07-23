@@ -167,12 +167,13 @@ func (s *Service) CreateWorktree(projectPath, projectID, name, base string, base
 		if !ok {
 			return nil, fmt.Errorf("remote branch %q has no remote prefix", base)
 		}
-		if _, err := runGit(projectPath, "fetch", remote, branch); err != nil {
+		if _, err := runGit(projectPath, "fetch", "--", remote, branch); err != nil {
 			return nil, err
 		}
 		args = append(args, "--track")
 	}
-	args = append(args, "-b", name, wtPath, base)
+	// "--": base is unvalidated, and "-"-prefixed it would parse as a flag.
+	args = append(args, "-b", name, "--", wtPath, base)
 	if _, err := runGit(projectPath, args...); err != nil {
 		return nil, err
 	}

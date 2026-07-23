@@ -37,6 +37,8 @@ export function CommandPalette() {
         event.preventDefault()
         event.stopPropagation()
         setOpen((v) => !v)
+        setQuery("")
+        setSelected(0)
       }
     }
     window.addEventListener("keydown", onKey, true)

@@ -121,6 +121,25 @@ describe("createGitStatusStore", () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
+  it("a stale fetch resolving late cannot overwrite a fresher one", async () => {
+    const resolvers: Array<(value: GitStatus | null) => void> = []
+    const fetch = vi.fn(
+      () => new Promise<GitStatus | null>((r) => resolvers.push(r)),
+    )
+    const store = createGitStatusStore(fetch, POLL_MS)
+    const listener = vi.fn()
+    store.subscribe("/repo", listener) // fetch #1 — the slow poll
+    store.refresh("/repo") // fetch #2 — the session-touched nudge
+    resolvers[1]?.(status(5)) // fresh result lands first
+    await vi.advanceTimersByTimeAsync(0)
+    expect(store.get("/repo")?.files).toBe(5)
+
+    resolvers[0]?.(status(1)) // the stale poll resolves late
+    await vi.advanceTimersByTimeAsync(0)
+    expect(store.get("/repo")?.files).toBe(5)
+    expect(listener).toHaveBeenCalledTimes(1)
+  })
+
   it("drops an in-flight result after teardown", async () => {
     let resolve: (value: GitStatus | null) => void = () => {}
     const fetch = vi.fn(
