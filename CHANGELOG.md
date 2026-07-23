@@ -12,8 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dragging a tab or session card no longer scrolls its strip.** Reorder drags
   are clamped to the strip's own axis, so pulling a project tab downward (or a
   session card sideways) can't overflow the container and trigger dnd-kit's
-  auto-scroll on the cross axis. The dragged tab also reads as lifted — solid
-  background and shadow — instead of a see-through ghost over its neighbours.
+  auto-scroll on the cross axis. The dragged tab and session card also stay
+  solid instead of turning into a see-through ghost — the old opacity fade is
+  gone, and the card no longer sits in its translucent hover state (the pointer
+  rides it for the whole drag) while sliding across its neighbours.
 
 ### Changed
 
