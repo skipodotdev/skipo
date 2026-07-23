@@ -463,6 +463,13 @@ export function TerminalView({
       })
 
       await Service.Start(sessionId, projectId, cwd, kind, resume, live.term.cols, live.term.rows)
+      if (disposed) {
+        // Unmounted during the Start round-trip: the cleanup's Close raced
+        // ahead of the spawn, so close again now that the PTY exists. The
+        // queued paste stays put for the session's next mount.
+        void Service.Close(sessionId)
+        return
+      }
       // Deliver any one-shot input queued for this session (the update flow's
       // install command) now that the PTY exists. No trailing newline, so it
       // sits at the prompt for the user to run.

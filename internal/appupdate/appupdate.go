@@ -44,6 +44,10 @@ const (
 	defaultOSRelease = "/etc/os-release"
 
 	httpTimeout = 5 * time.Second
+	// downloadTimeout bounds the binary download. A client Timeout spans the
+	// whole body read, so the metadata timeout above would cut a multi-MiB
+	// asset mid-stream on any modest link; this one is a hang stop, not a pace.
+	downloadTimeout = 5 * time.Minute
 	// bodyLimit caps the JSON/checksums reads; assetLimit caps the binary
 	// download (lich is a ~10-20 MiB static binary — 256 MiB is slack, not a
 	// target).
@@ -54,9 +58,13 @@ const (
 // Service reports lich's own update state and applies self-updates where the
 // binary is writable.
 type Service struct {
-	http    *http.Client
-	version string
-	exePath string
+	http *http.Client
+	// download carries the release-asset GET; separate from http so the short
+	// metadata timeout never applies to the body. Nil falls back to http
+	// (tests build bare Services against local servers).
+	download *http.Client
+	version  string
+	exePath  string
 	// goos is the platform, a field so tests can drive the self-apply path
 	// without running on that OS; defaults to runtime.GOOS.
 	goos string
@@ -80,6 +88,7 @@ func New(version string) *Service {
 	exe, _ := os.Executable() // "" if unresolved — canSelfApply then stays false.
 	return &Service{
 		http:          &http.Client{Timeout: httpTimeout},
+		download:      &http.Client{Timeout: downloadTimeout},
 		version:       version,
 		exePath:       exe,
 		goos:          runtime.GOOS,
@@ -149,7 +158,7 @@ func (s *Service) Apply() error {
 	if err != nil {
 		return err
 	}
-	resp, err := s.get(base + asset)
+	resp, err := s.getAsset(base + asset)
 	if err != nil {
 		return fmt.Errorf("download %s: %w", asset, err)
 	}
@@ -205,8 +214,8 @@ func (s *Service) installCommand() string {
 	}
 	data, _ := os.ReadFile(s.osReleasePath) // missing/unreadable → not arch → install.sh
 	if isArch(string(data)) {
-		// ponytail: assumes yay, the common AUR helper; a paru user edits the one
-		// word, since the command is pasted for review and never auto-run.
+		// Assumes yay, the common AUR helper; a paru user edits the one word,
+		// since the command is pasted for review and never auto-run.
 		return "yay -S " + aurPackage + restartChain
 	}
 	return installScript
@@ -283,13 +292,26 @@ func (s *Service) latestVersion() string {
 	return ghrelease.LatestTag(s.http, s.latestURL)
 }
 
-// get issues a GET with lich's identifying headers.
+// get issues a metadata GET (JSON, checksums) on the short-timeout client.
 func (s *Service) get(url string) (*http.Response, error) {
+	return s.getWith(s.http, url)
+}
+
+// getAsset issues the binary download on the long-timeout client.
+func (s *Service) getAsset(url string) (*http.Response, error) {
+	if s.download != nil {
+		return s.getWith(s.download, url)
+	}
+	return s.getWith(s.http, url)
+}
+
+// getWith issues a GET with lich's identifying headers.
+func (s *Service) getWith(c *http.Client, url string) (*http.Response, error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "lich")
-	return s.http.Do(req)
+	return c.Do(req)
 }

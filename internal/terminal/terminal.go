@@ -420,6 +420,10 @@ func (s *Service) stream(id string, p ptyHandle, out *coalescer, replay *replayB
 		}
 	}
 	_ = p.Wait()
+	// Release the PTY handle: on a natural child exit nobody else closes it
+	// (Close only reaps sessions still in the map), and the user-driven Close
+	// path tolerates this as a no-op double close.
+	_ = p.Close()
 	// Flush any batched output before the exit event so the frontend always
 	// sees the final bytes ahead of the exit banner.
 	out.Close()

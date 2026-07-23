@@ -16,6 +16,7 @@ const key = (over: Partial<KeyState>): KeyState => ({
   shiftKey: false,
   altKey: false,
   key: "",
+  repeat: false,
   ...over,
 })
 
@@ -30,6 +31,10 @@ describe("matchesCombo", () => {
   it("folds = into + so a combo recorded as + matches the unshifted key", () => {
     const plus: Combo = { mod: true, shift: false, alt: false, key: "+" }
     expect(matchesCombo(key({ ctrlKey: true, key: "=" }), plus)).toBe(true)
+  })
+
+  it("ignores key auto-repeat so a held chord fires once", () => {
+    expect(matchesCombo(key({ ctrlKey: true, shiftKey: true, key: "T", repeat: true }), newSession)).toBe(false)
   })
 
   it("rejects when a modifier differs", () => {

@@ -38,7 +38,7 @@ export const DEFAULT_HOTKEYS: Hotkeys = Object.fromEntries(
 // The subset of KeyboardEvent the matcher needs — lets tests pass plain objects.
 export type KeyState = Pick<
   KeyboardEvent,
-  "ctrlKey" | "metaKey" | "shiftKey" | "altKey" | "key"
+  "ctrlKey" | "metaKey" | "shiftKey" | "altKey" | "key" | "repeat"
 >
 
 const MODIFIER_KEYS = new Set(["Control", "Meta", "Shift", "Alt", "AltGraph"])
@@ -55,6 +55,9 @@ function normalizeKey(key: string): string {
 }
 
 export function matchesCombo(event: KeyState, combo: Combo): boolean {
+  // A held chord auto-repeats; every action here is a discrete command (spawn
+  // a session, toggle the palette), so only the initial press may fire.
+  if (event.repeat) return false
   const mod = event.ctrlKey || event.metaKey
   return (
     mod === combo.mod &&

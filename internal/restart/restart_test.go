@@ -124,4 +124,27 @@ func TestDoErrors(t *testing.T) {
 			t.Fatal("Do() = nil, want spawn error")
 		}
 	})
+
+	t.Run("spawn failure leaves restart retryable", func(t *testing.T) {
+		calls := 0
+		c := &Coordinator{
+			exePath: "/usr/local/bin/lich",
+			spawn: func(string, []string) error {
+				calls++
+				if calls == 1 {
+					return errors.New("boom")
+				}
+				return nil
+			},
+		}
+		if err := c.Do(); err == nil {
+			t.Fatal("first Do() = nil, want spawn error")
+		}
+		if err := c.Do(); err != nil {
+			t.Fatalf("second Do() = %v, want a retried spawn to succeed", err)
+		}
+		if calls != 2 {
+			t.Fatalf("spawn calls = %d, want 2 (failure must not latch)", calls)
+		}
+	})
 }

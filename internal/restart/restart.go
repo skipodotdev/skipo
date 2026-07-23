@@ -59,20 +59,21 @@ func (c *Coordinator) Do() error {
 	}
 	// Once only: a second /restart (two install.sh runs) must not spawn a second
 	// successor that would then lose the port race and burn the bind timeout.
+	// The latch is set only after a successful spawn — a failed launch (say,
+	// the exe mid-swap by the package manager) must leave /restart retryable,
+	// not silently dead. The lock spans the spawn so concurrent calls cannot
+	// both slip past the check.
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	if c.started {
-		c.mu.Unlock()
 		return nil
 	}
-	c.started = true
-	win := c.window
-	c.mu.Unlock()
-
 	if err := c.spawn(c.exePath, successorEnv(c.env)); err != nil {
 		return fmt.Errorf("restart: launch successor: %w", err)
 	}
-	if win != nil {
-		if err := c.terminate(win); err != nil {
+	c.started = true
+	if c.window != nil {
+		if err := c.terminate(c.window); err != nil {
 			return fmt.Errorf("restart: close window: %w", err)
 		}
 	}
