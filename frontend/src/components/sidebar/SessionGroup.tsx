@@ -1,6 +1,5 @@
 import {DndContext, closestCenter} from "@dnd-kit/core"
 import {SortableContext, verticalListSortingStrategy} from "@dnd-kit/sortable"
-import {useGitStatus} from "@/lib/useGitStatus"
 import {useSortableList, verticalAxis} from "@/lib/use-sortable-list"
 import {baseName} from "@/lib/paths"
 import type {Session} from "@/lib/sessions"
@@ -25,11 +24,11 @@ interface SessionGroupProps {
   onOpenTerminal: (cwd: string) => void
 }
 
-// SessionGroup renders one worktree's sessions under a static divider label
-// (folder name + branch). The label reads the group's own checkout path, never a
-// session's live cwd, so a `cd` deeper into the tree never restyles or re-buckets
-// the group. The isolated DndContext is what confines a drag to reordering
-// within the group.
+// SessionGroup renders one worktree's sessions under a static divider titled
+// with the worktree folder name; the branch stays on each card. The title reads
+// the group's own checkout path, never a session's live cwd, so a `cd` deeper
+// into the tree never re-buckets the group. The isolated DndContext is what
+// confines a drag to reordering within the group.
 export function SessionGroup({
   path,
   sessions,
@@ -43,7 +42,6 @@ export function SessionGroup({
   onRename,
   onOpenTerminal,
 }: SessionGroupProps) {
-  const git = useGitStatus(path || projectPath)
   const ids = sessions.map((session) => session.id)
   const {sensors, onDragEnd} = useSortableList(ids, onReorder)
   const name = path ? baseName(path) : projectName
@@ -52,13 +50,8 @@ export function SessionGroup({
     <div className="flex flex-col gap-1.5">
       {showHeader && (
         <div className="flex items-center gap-2 px-1 pb-0.5 pt-1.5">
-          <span className="flex min-w-0 items-center gap-1.5 text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
-            <span className="truncate">{name}</span>
-            {git?.branch && (
-              <span className="shrink-0 font-mono font-normal normal-case tracking-normal text-muted-foreground/90">
-                · {git.branch}
-              </span>
-            )}
+          <span className="min-w-0 truncate text-[0.65rem] font-semibold uppercase tracking-wider text-muted-foreground/70">
+            {name}
           </span>
           <span className="h-px flex-1 bg-border"/>
         </div>
