@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -13,16 +14,41 @@ import (
 // (internal/rpc.bodyLimit). Kept in step with the diff viewer's own ceilings.
 const maxReadFileSize = 1 << 20
 
-// Tree lists the repository's tracked files as repo-relative, slash-separated
-// paths, already sorted (git's own order). It uses `git ls-files`, so
-// .gitignore is honored for free and only versioned files appear — no
-// node_modules, no build output. A non-repository path yields an error,
-// matching DiffText's contract.
-//
-// Ceiling: untracked files are invisible to ls-files, matching the file tree's
-// documented limit; merge `git status --porcelain` if they ever need to show.
+// Tree lists the work tree's files as repo-relative, slash-separated paths,
+// sorted. It merges tracked files with untracked-but-not-ignored ones
+// (`ls-files --cached --others --exclude-standard`) and drops any tracked file
+// deleted from disk (`--deleted`), so a file created or removed since the
+// session began shows without a commit. .gitignore is honored for free, so no
+// node_modules and no build output leak in. A non-repository path yields an
+// error, matching DiffText's contract.
 func (s *Service) Tree(path string) ([]string, error) {
-	out, err := runGit(path, "ls-files", "-z")
+	present, err := lsFiles(path, "--cached", "--others", "--exclude-standard")
+	if err != nil {
+		return nil, err
+	}
+	deleted, err := lsFiles(path, "--deleted")
+	if err != nil {
+		return nil, err
+	}
+	gone := make(map[string]struct{}, len(deleted))
+	for _, rel := range deleted {
+		gone[rel] = struct{}{}
+	}
+	var files []string
+	for _, rel := range present {
+		if _, ok := gone[rel]; !ok {
+			files = append(files, rel)
+		}
+	}
+	// The --cached/--others merge is not globally sorted; the tree wants one order.
+	slices.Sort(files)
+	return files, nil
+}
+
+// lsFiles runs `git ls-files -z` with the given selectors and splits its
+// NUL-delimited output into repo-relative paths.
+func lsFiles(path string, args ...string) ([]string, error) {
+	out, err := runGit(path, append([]string{"ls-files", "-z"}, args...)...)
 	if err != nil {
 		return nil, err
 	}

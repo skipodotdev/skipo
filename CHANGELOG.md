@@ -21,6 +21,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Opus/Sonnet/Fable, 200k for Haiku). The readout can be turned off under
   Settings › Providers › Claude Code. Needs no change to the user's statusline;
   other providers stay blank until they report a session id of their own.
+- **The file tree tracks the working tree live.** The Files tab now lists
+  untracked-but-not-ignored files alongside tracked ones and drops any file
+  deleted from disk, so a file created or removed during a session shows up
+  without a commit — it is no longer frozen at the session's starting set.
+- **The file tree shows each changed file's line delta.** A modified or new
+  file carries the same `+added −deleted` pair the review panel and footer use,
+  reusing the diff already parsed for the review — a clean file stays bare.
+- **Right-click in the file tree.** A directory's context menu offers Expand all
+  and Collapse all over that folder's subtree; a file's offers Open in editor. A
+  GUI `$VISUAL`/`$EDITOR` — or the platform opener (`xdg-open`, `open -t`,
+  `start`) when neither is set — launches detached; a terminal editor (vim,
+  nvim, nano, …) opens in a fresh lich terminal session rooted at the checkout,
+  since a detached launch would leave it with no controlling terminal. The
+  editor is resolved from the login shell, so a GUI launch still sees rc exports.
 
 ## [0.17.0] - 2026-07-24
 

@@ -98,7 +98,7 @@ func main() {
 	dispatcher.Register("appupdate", appupdate.New(version))
 	dispatcher.Register("patchnotes", patchnotes.New(version, changelog))
 	dispatcher.Register("store", db)
-	dispatcher.Register("system", system.New())
+	dispatcher.Register("system", system.New(env))
 	dispatcher.Register("providers", providers.New())
 	dispatcher.Deny("store.Close")
 	term.Mount("/rpc/", dispatcher)

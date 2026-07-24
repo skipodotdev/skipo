@@ -199,6 +199,11 @@ export const PatchNotes = {
 
 export const System = {
   OpenExternal: (url: string) => call<null>("system.OpenExternal", [url]),
+  /** Open a work-tree file (repo-relative rel under dir) in $VISUAL/$EDITOR.
+   * Returns "" when it launched a GUI editor detached, or a shell command line
+   * to run in a terminal session when the editor is a terminal editor. */
+  OpenInEditor: (dir: string, rel: string) =>
+    call<string>("system.OpenInEditor", [dir, rel]),
 }
 
 export const Providers = {

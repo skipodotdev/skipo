@@ -3,12 +3,14 @@ package project
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
 
-// TestTree proves tracked files are listed repo-relative and slash-separated,
-// and that .gitignore'd and untracked files never appear.
+// TestTree proves the tree reflects the work tree: tracked files listed
+// repo-relative and slash-separated, untracked-but-not-ignored files included,
+// .gitignore'd files excluded, all sorted.
 func TestTree(t *testing.T) {
 	repo, git := initRepo(t)
 	mkdir(t, repo, "internal/rpc")
@@ -17,7 +19,7 @@ func TestTree(t *testing.T) {
 	git("add", ".")
 	git("commit", "-m", "add files")
 
-	// Ignored and untracked files must be invisible to the tree.
+	// Ignored files stay invisible; an untracked file now shows without a commit.
 	write(t, repo, ".gitignore", "ignored.txt\n")
 	write(t, repo, "ignored.txt", "secret\n")
 	write(t, repo, "untracked.txt", "new\n")
@@ -29,9 +31,25 @@ func TestTree(t *testing.T) {
 		t.Fatalf("Tree: %v", err)
 	}
 	got := strings.Join(files, ",")
-	want := ".gitignore,a.txt,internal/rpc/rpc.go,z.txt"
+	want := ".gitignore,a.txt,internal/rpc/rpc.go,untracked.txt,z.txt"
 	if got != want {
 		t.Errorf("Tree = %q, want %q", got, want)
+	}
+}
+
+// TestTreeDropsDeleted proves a tracked file removed from disk (but not yet
+// staged) disappears from the tree, so the list is not frozen at HEAD.
+func TestTreeDropsDeleted(t *testing.T) {
+	repo, _ := initRepo(t)
+	if err := os.Remove(filepath.Join(repo, "a.txt")); err != nil {
+		t.Fatal(err)
+	}
+	files, err := New(nil).Tree(repo)
+	if err != nil {
+		t.Fatalf("Tree: %v", err)
+	}
+	if slices.Contains(files, "a.txt") {
+		t.Errorf("Tree = %v, want a.txt dropped", files)
 	}
 }
 
