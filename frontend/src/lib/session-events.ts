@@ -34,9 +34,9 @@ export const AGENT_EVENT = "session-agent"
 
 // Global event the backend emits after a turn ends with the session's
 // context-window usage (see terminal.usageEventName). Payload: { id, percent,
-// tokens, window, model } — percent is 0–100 of the window, tokens the raw
-// input-side count, window the model's context size, model its id (all for the
-// tooltip).
+// tokens, window, model, effort } — percent is 0–100 of the window, tokens the
+// raw input-side count, window the model's context size, model its id, effort
+// the reasoning level ("" when the turn records none).
 export const USAGE_EVENT = "session-usage"
 
 // A session's context-window occupancy as the footer shows it.
@@ -45,6 +45,7 @@ export interface SessionUsage {
   tokens: number
   window: number
   model: string
+  effort: string
 }
 
 // The states a card renders an indicator for. The contract also defines "idle"
@@ -93,13 +94,21 @@ export function isAgentEvent(data: unknown): data is {id: string; agent: string}
 
 export function isUsageEvent(
   data: unknown,
-): data is {id: string; percent: number; tokens: number; window: number; model: string} {
+): data is {
+  id: string
+  percent: number
+  tokens: number
+  window: number
+  model: string
+  effort: string
+} {
   return (
     isIdEvent(data) &&
     typeof (data as {percent?: unknown}).percent === "number" &&
     typeof (data as {tokens?: unknown}).tokens === "number" &&
     typeof (data as {window?: unknown}).window === "number" &&
-    typeof (data as {model?: unknown}).model === "string"
+    typeof (data as {model?: unknown}).model === "string" &&
+    typeof (data as {effort?: unknown}).effort === "string"
   )
 }
 

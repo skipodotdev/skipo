@@ -21,6 +21,7 @@ export function SessionModel({sessionId}: SessionModelProps) {
     <span className="flex items-center gap-1.5">
       <ProviderIcon kind="claude" size={14}/>
       {formatModel(usage.model)}
+      {usage.effort ? ` · ${usage.effort}` : ""}
     </span>
   )
 }

@@ -137,10 +137,12 @@ func New(store Store, env []string, hub *events.Hub) *Service {
 		},
 		func(id, state string) {
 			hub.Emit(statusEventName, statusEvent{ID: id, State: state})
-			// A turn-boundary state means the transcript's final usage for this
-			// turn is written; read the context window off-thread so a stalled
-			// emit never blocks the hook's response.
-			if state == "done" || state == "waiting" {
+			// Every non-idle state is a point where a fresh assistant usage line
+			// may have landed — a tool call mid-turn (busy), a prompt (waiting),
+			// or the turn's end (done) — so refresh the context window then, and
+			// off-thread so a stalled emit never blocks the hook's response. Skip
+			// idle (SessionEnd): the session is ending, nothing new to read.
+			if state != "idle" {
 				go s.emitUsage(id)
 			}
 		},

@@ -10,21 +10,23 @@ const usageEventName = "session-usage"
 
 // usageEvent is the payload of usageEventName. Percent is the share of the
 // context window the turn left occupied (0–100); Tokens is the raw input-side
-// count behind it, Window the model's context window, and Model the model id —
-// all for the tooltip.
+// count behind it, Window the model's context window, Model the model id, and
+// Effort the reasoning effort level ("" when the line records none).
 type usageEvent struct {
 	ID      string `json:"id"`
 	Percent int    `json:"percent"`
 	Tokens  int    `json:"tokens"`
 	Window  int    `json:"window"`
 	Model   string `json:"model"`
+	Effort  string `json:"effort"`
 }
 
 // emitUsage reads the context-window usage of the provider conversation running
-// in session id and pushes it to the frontend. Called off the status hook's
-// turn-boundary states (see New), where the transcript's final usage is written.
-// Silent on any miss — no provider id yet, no transcript, an unreadable or
-// half-written file — so a card keeps its last number instead of flickering.
+// in session id and pushes it to the frontend. Called off the status hook on
+// every non-idle state (see New), so it tracks the context as it grows through a
+// turn, not only at the end. Silent on any miss — no provider id yet, no
+// transcript, an unreadable or half-written file — so the readout keeps its last
+// value instead of flickering.
 //
 // Only Claude reports a provider session id today (resume and the session-start
 // hook are Claude-only), so the reader is Claude's. A second provider that grows
@@ -43,5 +45,12 @@ func (s *Service) emitUsage(id string) {
 	if !ok {
 		return
 	}
-	s.hub.Emit(usageEventName, usageEvent{ID: id, Percent: u.percent, Tokens: u.tokens, Window: u.window, Model: u.model})
+	s.hub.Emit(usageEventName, usageEvent{
+		ID:      id,
+		Percent: u.percent,
+		Tokens:  u.tokens,
+		Window:  u.window,
+		Model:   u.model,
+		Effort:  u.effort,
+	})
 }

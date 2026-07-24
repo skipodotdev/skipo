@@ -74,6 +74,7 @@ type contextUsage struct {
 	percent int
 	window  int
 	model   string
+	effort  string
 }
 
 // claudeContextUsage reads the context-window usage of a Claude conversation
@@ -155,6 +156,7 @@ func parseContextUsage(tail []byte) (contextUsage, bool) {
 		var entry struct {
 			Type        string `json:"type"`
 			IsSidechain bool   `json:"isSidechain"`
+			Effort      string `json:"effort"`
 			Message     struct {
 				Model string `json:"model"`
 				Usage *struct {
@@ -174,7 +176,13 @@ func parseContextUsage(tail []byte) (contextUsage, bool) {
 		tokens := u.Input + u.CacheRead + u.CacheCreate
 		window := windowForModel(entry.Message.Model, tokens)
 		percent := min(tokens*100/window, 100)
-		return contextUsage{tokens: tokens, percent: percent, window: window, model: entry.Message.Model}, true
+		return contextUsage{
+			tokens:  tokens,
+			percent: percent,
+			window:  window,
+			model:   entry.Message.Model,
+			effort:  entry.Effort,
+		}, true
 	}
 	return contextUsage{}, false
 }

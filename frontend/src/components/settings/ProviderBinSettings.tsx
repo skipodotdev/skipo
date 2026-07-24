@@ -87,13 +87,13 @@ export function ProviderBinSettings({
           the footer readout toggle lives in its section, not the generic hub. */}
       {providerId === "claude" && (
         <SettingBlock
-          title="Context window in the footer"
-          description="Show this session's context-window usage in the footer — a ring with the percent, read from the transcript at each turn's end."
+          title="Model & context in the footer"
+          description="Show this session's model and context-window usage in the footer — the model name plus a ring with the percent, read from the transcript."
         >
           <Switch
             checked={showContextUsage}
             onCheckedChange={setShowContextUsage}
-            aria-label="Show context window usage in the footer"
+            aria-label="Show model and context usage in the footer"
           />
         </SettingBlock>
       )}

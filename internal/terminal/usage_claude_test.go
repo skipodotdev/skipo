@@ -126,6 +126,21 @@ func TestParseContextUsage(t *testing.T) {
 	}
 }
 
+func TestParseContextUsageEffort(t *testing.T) {
+	// effort is a top-level field on the entry, beside type/isSidechain.
+	withEffort := `{"type":"assistant","effort":"xhigh","message":{"model":"` + modelOpus +
+		`","usage":{"input_tokens":2,"cache_read_input_tokens":20000,"cache_creation_input_tokens":0}}}`
+	got, ok := parseContextUsage([]byte(withEffort + "\n"))
+	if !ok || got.effort != "xhigh" {
+		t.Fatalf("effort = %q ok = %v, want %q true", got.effort, ok, "xhigh")
+	}
+	// A line without the field parses with an empty effort.
+	bare, ok := parseContextUsage([]byte(assistantLine(modelOpus, 2, 20000, 0) + "\n"))
+	if !ok || bare.effort != "" {
+		t.Errorf("effort = %q, want empty for a line that records none", bare.effort)
+	}
+}
+
 func TestWindowForModel(t *testing.T) {
 	tests := []struct {
 		model  string

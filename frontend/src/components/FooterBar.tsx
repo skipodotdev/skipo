@@ -194,7 +194,7 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
       )}
 
       <span className="ml-auto flex items-center gap-4">
-        <SessionModel sessionId={sessionId}/>
+        {showContextUsage && <SessionModel sessionId={sessionId}/>}
         {contextReadout}
         {contextReadout && (status?.branch || path) && (
           <Separator orientation="vertical" className="h-4"/>

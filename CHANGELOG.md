@@ -10,16 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **The footer shows the active session's model and context window.** The status
-  strip now names the model the active Claude session runs, marked with the
-  provider's icon, and a small ring beside it fills with the percent of its
-  context window in use; hovering the ring shows a fuller bar and the exact
-  tokens against the window size. Read off the conversation's transcript at each
-  turn's end, the ring turns amber past 80% and red past 95%, so a session
+  strip now names the model the active Claude session runs and its reasoning
+  effort (e.g. `opus 4.8 · xhigh`), marked with the provider's icon, and a small
+  ring beside it fills with the percent of its context window in use; hovering
+  the ring shows a fuller bar and the exact tokens against the window size. It
+  refreshes as the context grows through a turn, read off the conversation's
+  transcript. The ring turns amber past 80% and red past 95%, so a session
   drifting toward auto-compaction is visible without opening `/context`. The
   percent is taken against the model's native window (1M for current
-  Opus/Sonnet/Fable, 200k for Haiku). The ring can be turned off under Settings ›
-  Providers › Claude Code. Needs no change to the user's statusline; other
-  providers stay blank until they report a session id of their own.
+  Opus/Sonnet/Fable, 200k for Haiku). The readout can be turned off under
+  Settings › Providers › Claude Code. Needs no change to the user's statusline;
+  other providers stay blank until they report a session id of their own.
 
 ## [0.17.0] - 2026-07-24
 

@@ -39,7 +39,8 @@ export function createSessionUsageStore(source: UsageEventSource) {
       entry.usage.percent === data.percent &&
       entry.usage.tokens === data.tokens &&
       entry.usage.window === data.window &&
-      entry.usage.model === data.model
+      entry.usage.model === data.model &&
+      entry.usage.effort === data.effort
     ) {
       return
     }
@@ -48,6 +49,7 @@ export function createSessionUsageStore(source: UsageEventSource) {
       tokens: data.tokens,
       window: data.window,
       model: data.model,
+      effort: data.effort,
     }
     for (const listener of entry.listeners) {
       listener()
