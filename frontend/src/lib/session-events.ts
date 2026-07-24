@@ -32,6 +32,21 @@ export const CWD_EVENT = "session-cwd"
 // Payload: { id, agent }; an empty agent (every PTY spawn) clears the mark.
 export const AGENT_EVENT = "session-agent"
 
+// Global event the backend emits after a turn ends with the session's
+// context-window usage (see terminal.usageEventName). Payload: { id, percent,
+// tokens, window, model } — percent is 0–100 of the window, tokens the raw
+// input-side count, window the model's context size, model its id (all for the
+// tooltip).
+export const USAGE_EVENT = "session-usage"
+
+// A session's context-window occupancy as the footer shows it.
+export interface SessionUsage {
+  percent: number
+  tokens: number
+  window: number
+  model: string
+}
+
 // The states a card renders an indicator for. The contract also defines "idle"
 // (SessionEnd), which maps to no indicator like any unknown value does.
 const RENDERED_STATUSES = ["busy", "done", "waiting"] as const
@@ -74,6 +89,18 @@ export function isCwdEvent(data: unknown): data is {id: string; cwd: string} {
 
 export function isAgentEvent(data: unknown): data is {id: string; agent: string} {
   return isIdEvent(data) && typeof (data as {agent?: unknown}).agent === "string"
+}
+
+export function isUsageEvent(
+  data: unknown,
+): data is {id: string; percent: number; tokens: number; window: number; model: string} {
+  return (
+    isIdEvent(data) &&
+    typeof (data as {percent?: unknown}).percent === "number" &&
+    typeof (data as {tokens?: unknown}).tokens === "number" &&
+    typeof (data as {window?: unknown}).window === "number" &&
+    typeof (data as {model?: unknown}).model === "string"
+  )
 }
 
 // shouldToastAttention decides whether a session needing the user deserves the

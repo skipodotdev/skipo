@@ -222,6 +222,24 @@ func (s *Service) SetProviderSession(sessionID, providerSessionID string) error 
 	return nil
 }
 
+// ProviderSession returns the provider conversation id recorded for a lich
+// session, or "" when none has been reported yet (or the session is gone — a
+// missing row is not an error). Pairs with SetProviderSession: the context-usage
+// read locates a transcript by this id.
+func (s *Service) ProviderSession(sessionID string) (string, error) {
+	var id sql.NullString
+	err := s.db.QueryRow(
+		`SELECT provider_session_id FROM sessions WHERE id = ?`, sessionID,
+	).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read provider session on %q: %w", sessionID, err)
+	}
+	return id.String, nil
+}
+
 // ReorderProjects records the tab order after a drag. It writes every project's
 // position from the full list the frontend rendered, so the stored order is
 // rewritten as a whole rather than patched around the moved tab.

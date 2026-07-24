@@ -26,6 +26,7 @@ type stubBins struct{ bin, setup string }
 func (s stubBins) ProviderBin(_, _ string) string            { return s.bin }
 func (s stubBins) WorktreeSetup(_ string) string             { return s.setup }
 func (s stubBins) SetProviderSession(_, _ string) error      { return nil }
+func (s stubBins) ProviderSession(_ string) (string, error)  { return "", nil }
 func (s stubBins) SetSessionTitle(_, _ string) (bool, error) { return false, nil }
 
 // TestChildEnvStripsAppImageVars proves the AppImage runtime variables that break

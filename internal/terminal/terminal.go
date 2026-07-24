@@ -98,6 +98,7 @@ type Store interface {
 	ProviderBin(providerID, projectID string) string
 	WorktreeSetup(projectID string) string
 	SetProviderSession(sessionID, providerSessionID string) error
+	ProviderSession(sessionID string) (string, error)
 	SetSessionTitle(sessionID, title string) (bool, error)
 }
 
@@ -136,6 +137,12 @@ func New(store Store, env []string, hub *events.Hub) *Service {
 		},
 		func(id, state string) {
 			hub.Emit(statusEventName, statusEvent{ID: id, State: state})
+			// A turn-boundary state means the transcript's final usage for this
+			// turn is written; read the context window off-thread so a stalled
+			// emit never blocks the hook's response.
+			if state == "done" || state == "waiting" {
+				go s.emitUsage(id)
+			}
 		},
 		func(sessionID, providerSessionID string) error {
 			if err := store.SetProviderSession(sessionID, providerSessionID); err != nil {

@@ -5,10 +5,15 @@ import {ProjectService, System, Terminal as TerminalService} from "@/lib/rpc"
 import type {DockTab} from "@/components/dock/RightDock"
 import {useActiveSession} from "@/lib/useActiveSession"
 import {useSessionCwd} from "@/lib/useSessionCwd"
+import {useSessionUsage} from "@/lib/useSessionUsage"
 import {displayPath} from "@/lib/paths"
+import {formatModel} from "@/lib/model-name"
 import {useGitStatus} from "@/lib/useGitStatus"
 import {usePullRequest} from "@/lib/usePullRequest"
+import {useSettings} from "@/lib/settings"
+import {cn} from "@/lib/utils"
 import {DiffStat} from "@/components/DiffStat"
+import {ContextRing, contextColor} from "@/components/ContextRing"
 import {Separator} from "@/components/ui/separator"
 import {
   Tooltip,
@@ -43,6 +48,11 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
   // with it — same source the session card follows. Falls back to the session's
   // static start path until the watcher reports.
   const path = useSessionCwd(sessionId) || basePath
+  // Context-window occupancy of the active session, read off its transcript at
+  // each turn's end (null until the first turn of a Claude session lands).
+  const usage = useSessionUsage(sessionId)
+  // The footer context readout is opt-out (Settings › Providers).
+  const {showContextUsage} = useSettings()
   const status = useGitStatus(path)
   const pr = usePullRequest(path, status?.branch ?? "")
   const now = useNow()
@@ -57,6 +67,51 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
       toast.error("Could not open the file picker")
     }
   }
+
+  // The context-window readout — the ring plus percent, with a detailed
+  // tooltip. Null when the user turned it off (Settings › Providers).
+  const contextReadout = usage && showContextUsage ? (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <span
+            className={cn(
+              "flex items-center gap-1.5 tabular-nums",
+              contextColor(usage.percent),
+            )}
+          />
+        }
+      >
+        <ContextRing percent={usage.percent}/>
+        {usage.percent}%
+      </TooltipTrigger>
+      <TooltipContent
+        side="top"
+        className="border border-border bg-card text-foreground"
+      >
+        <div className="flex flex-col gap-1.5">
+          <span className="flex items-center justify-between gap-4">
+            <span className="font-medium">Context window</span>
+            <span className="font-mono text-xs text-muted-foreground">
+              {formatModel(usage.model)}
+            </span>
+          </span>
+          <div className={cn("flex items-center gap-2", contextColor(usage.percent))}>
+            <span className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
+              <span
+                className="block h-full rounded-full bg-current"
+                style={{width: `${usage.percent}%`}}
+              />
+            </span>
+            <span className="tabular-nums">{usage.percent}%</span>
+          </div>
+          <span className="font-mono text-xs text-muted-foreground">
+            {usage.tokens.toLocaleString()} / {usage.window.toLocaleString()} tokens
+          </span>
+        </div>
+      </TooltipContent>
+    </Tooltip>
+  ) : null
 
   return (
     <footer
@@ -144,6 +199,10 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
       )}
 
       <span className="ml-auto flex items-center gap-4">
+        {contextReadout}
+        {contextReadout && (status?.branch || path) && (
+          <Separator orientation="vertical" className="h-4"/>
+        )}
         {status?.branch && (
           <span className="flex items-center gap-1">
             <GitBranch className="size-3.5"/>
