@@ -127,10 +127,7 @@ Short specs; the code is the detail. All follow the idiom above.
 
 ## Adoption
 
-The idiom is the standard for all new and touched code. A few components predate it and still wear the boxed
-look — migrate them when nearby, header-first:
-
-- `SessionCard` — drop `border border-border/60 bg-card`; keep it a row.
-- `FileDiff` — drop `rounded-lg border border-border bg-card`; borderless section.
-- `FooterBar` — controls become ghost buttons; hairline only on the strip's top seam, not per chip.
-- Filled `bg-muted-foreground/10` pill badges → text + glyph.
+The idiom is the standard for all new and touched code. The originally boxed surfaces — the session and
+settings cards, the review-panel file diffs, the footer controls, and the filled pill badges — have been
+brought into it. Keep new components in line: reach for spacing and a hover state before adding a border, a
+`bg-card` panel, or a filled pill.
