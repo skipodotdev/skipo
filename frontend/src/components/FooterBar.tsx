@@ -69,7 +69,7 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
               onClick={() => void attachFile()}
               disabled={!sessionId}
               aria-label="Attach file"
-              className="flex items-center justify-center rounded-md border border-border bg-muted p-1 text-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40"
+              className="flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-40"
             />
           }
         >
@@ -86,7 +86,7 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
                 onClick={() => onDock("files")}
                 aria-pressed={dock === "files"}
                 aria-label="Browse code"
-                className={`flex items-center justify-center rounded-md border border-border bg-muted p-1 transition-colors hover:bg-accent hover:text-accent-foreground ${
+                className={`flex items-center justify-center rounded-md p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground ${
                   dock === "files" ? "bg-accent text-accent-foreground" : ""
                 }`}
               />
@@ -105,7 +105,7 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
                 type="button"
                 onClick={() => onDock("review")}
                 aria-pressed={dock === "review"}
-                className={`flex items-center gap-1.5 rounded-md border border-border bg-muted px-1.5 py-1 transition-colors hover:bg-accent hover:text-accent-foreground ${
+                className={`flex items-center gap-1.5 rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground ${
                   dock === "review" ? "bg-accent text-accent-foreground" : ""
                 }`}
               />
@@ -133,7 +133,7 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
               <button
                 type="button"
                 onClick={() => void System.OpenExternal(pr.url)}
-                className="flex items-center gap-1.5 rounded-md border border-border bg-muted px-1.5 py-1 transition-colors hover:bg-accent hover:text-accent-foreground"
+                className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               />
             }
           >

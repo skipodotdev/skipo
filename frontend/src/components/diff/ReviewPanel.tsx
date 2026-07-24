@@ -6,7 +6,7 @@ import {discardTargets, parseDiff, type DiffFile} from "@/lib/diff"
 import {useGitStatus} from "@/lib/useGitStatus"
 import {errorText} from "@/lib/utils"
 import {DiscardDialog} from "./DiscardDialog"
-import {FileDiff} from "./FileDiff"
+import {FileDiff, type DiffBulk} from "./FileDiff"
 
 // ReviewPanel is the Review tab's body: the active session's uncommitted diff,
 // one collapsible file at a time. Context-menu actions write file/line
@@ -14,7 +14,7 @@ import {FileDiff} from "./FileDiff"
 // It follows the active session — a worktree session reviews its checkout, not
 // the project root. The dock (RightDock) owns the surrounding chrome: width,
 // full screen, the tab bar and the close button.
-export function ReviewPanel() {
+export function ReviewPanel({bulk}: {bulk: DiffBulk}) {
   const {sessionId, path} = useActiveSession()
   const status = useGitStatus(path)
   const [files, setFiles] = useState<DiffFile[] | null>(null)
@@ -73,6 +73,7 @@ export function ReviewPanel() {
         failed={failed}
         onInject={inject}
         onDiscard={setPendingDiscard}
+        bulk={bulk}
       />
       <DiscardDialog
         file={pendingDiscard}
@@ -88,9 +89,10 @@ interface PanelBodyProps {
   failed: boolean
   onInject: (text: string) => void
   onDiscard: (file: DiffFile) => void
+  bulk: DiffBulk
 }
 
-function PanelBody({files, failed, onInject, onDiscard}: PanelBodyProps) {
+function PanelBody({files, failed, onInject, onDiscard, bulk}: PanelBodyProps) {
   if (failed) {
     return <PanelNotice>Not a git repository</PanelNotice>
   }
@@ -101,13 +103,14 @@ function PanelBody({files, failed, onInject, onDiscard}: PanelBodyProps) {
     return <PanelNotice>No uncommitted changes</PanelNotice>
   }
   return (
-    <div className="flex flex-col gap-2 p-2">
+    <div className="flex flex-col p-2 [&>section:not(:first-child)]:mt-2.5 [&>section:not(:first-child)]:border-t [&>section:not(:first-child)]:border-border [&>section:not(:first-child)]:pt-2.5">
       {files.map((file) => (
         <FileDiff
           key={file.newPath}
           file={file}
           onInject={onInject}
           onDiscard={() => onDiscard(file)}
+          bulk={bulk}
         />
       ))}
     </div>

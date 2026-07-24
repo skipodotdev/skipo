@@ -35,7 +35,7 @@ export function ProjectTabs() {
   const showHome = homeId !== null && projects.some((p) => p.id === homeId)
 
   return (
-    <div className="flex h-11 shrink-0 items-center gap-1 border-b border-border bg-sidebar px-2">
+    <div className="flex h-10 shrink-0 items-center gap-1 border-b border-border bg-sidebar px-2">
       <div className="flex flex-1 items-center gap-1 overflow-x-auto overflow-y-hidden">
         {showHome && homeId && <HomeTab projectId={homeId}/>}
         <DndContext
@@ -66,6 +66,7 @@ export function ProjectTabs() {
           <Plus className="size-4"/>
         </Button>
       </div>
+      <div aria-hidden className="mx-1 h-5 w-px shrink-0 bg-border"/>
       <NotificationsButton/>
       <Button
         variant="ghost"

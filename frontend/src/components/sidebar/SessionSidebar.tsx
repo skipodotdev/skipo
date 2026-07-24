@@ -175,50 +175,48 @@ export function SessionSidebar() {
       className="relative flex shrink-0 flex-col border-r border-border bg-sidebar p-2"
       style={{width: `${width}rem`}}
     >
-      <div className="mb-2 flex items-center justify-between px-1">
-        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Sessions
-        </span>
-        <DropdownMenu>
-          <DropdownMenuTrigger
-            title="New session"
-            aria-label="New session"
-            render={<Button variant="ghost" size="icon-xs" className="text-muted-foreground"/>}
-          >
-            <Plus className="size-4"/>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className={"w-44"}>
-            <DropdownMenuGroup>
-              {enabled.map((provider) => (
-                <DropdownMenuItem
-                  key={provider.id}
-                  onClick={() => newSession(projectId, provider.id)}
-                >
-                  <ProviderIcon kind={provider.id}/>
-                  {provider.name}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator/>
-            <DropdownMenuGroup>
-              <DropdownMenuItem onClick={() => newSession(projectId, "shell")}>
-                <Terminal/>
-                Terminal
-              </DropdownMenuItem>
-            </DropdownMenuGroup>
-            <DropdownMenuSeparator/>
-            <DropdownMenuGroup>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          title="New session"
+          aria-label="New session"
+          render={
+            <Button
+              variant="ghost"
+              className="mb-2 w-full justify-start gap-2 text-foreground hover:bg-accent aria-expanded:bg-accent"
+            />
+          }
+        >
+          <Plus className="size-4 text-muted-foreground"/>
+          New Session
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="max-w-56">
+          <DropdownMenuGroup>
+            {enabled.map((provider) => (
               <DropdownMenuItem
-                disabled={!git?.branch}
-                onClick={() => setWorktreeOpen(true)}
+                key={provider.id}
+                onClick={() => newSession(projectId, provider.id)}
               >
-                <GitBranch/>
-                Worktree
+                <ProviderIcon kind={provider.id}/>
+                {provider.name}
               </DropdownMenuItem>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
+            ))}
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator/>
+          <DropdownMenuGroup>
+            <DropdownMenuItem onClick={() => newSession(projectId, "shell")}>
+              <Terminal/>
+              Terminal
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!git?.branch}
+              onClick={() => setWorktreeOpen(true)}
+            >
+              <GitBranch/>
+              Worktree
+            </DropdownMenuItem>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
       <div className="flex flex-1 flex-col gap-1.5 overflow-y-auto overflow-x-hidden">
         {settingsOpen && (
           <SettingsCard

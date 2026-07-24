@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react"
 import type { ReactNode } from "react"
 import { toast } from "sonner"
+import { Bell, Folder } from "lucide-react"
 import { useMatch, useNavigate } from "react-router-dom"
 import type { Project } from "./api-types"
 import type { StoredProject as StoreProject } from "./api-types"
@@ -372,16 +373,29 @@ export function ProjectsProvider({ children }: { children: ReactNode }) {
       const label =
         sessionsRef.current[projectId]?.sessions.find((s) => s.id === id)?.label ??
         UNLABELED_SESSION
-      toast(`${label} needs your input`, {
-        duration: ATTENTION_TOAST_MS,
-        action: {
-          label: "Open",
-          onClick: () => {
-            navigate(`/projects/${projectId}`)
-            activateSession(projectId, id)
+      const projectName = projectsRef.current.find((p) => p.id === projectId)?.name
+      toast(
+        <div className="flex min-w-0 flex-col">
+          <span>{label} needs your input</span>
+          {projectName && (
+            <span className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
+              <Folder className="size-3 shrink-0" />
+              <span className="truncate">{projectName}</span>
+            </span>
+          )}
+        </div>,
+        {
+          duration: ATTENTION_TOAST_MS,
+          icon: <Bell className="size-4 text-amber-500" />,
+          action: {
+            label: "Open",
+            onClick: () => {
+              navigate(`/projects/${projectId}`)
+              activateSession(projectId, id)
+            },
           },
         },
-      })
+      )
     })
     return () => off()
   }, [navigate, activateSession])

@@ -1,4 +1,4 @@
-import {useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 import type {ReactNode} from "react"
 import {ChevronDown, ChevronRight, Paperclip, Undo2} from "lucide-react"
 import {
@@ -28,29 +28,48 @@ import {useDiffEditor} from "./useDiffEditor"
 // giant lockfile doesn't swamp the panel (expanding is one click away).
 const LARGE_FILE_LINES = 500
 
+// A collapse/expand-all directive shared by every file in the panel. The nonce
+// is bumped on each bulk action so files re-sync even to a target they already
+// hold.
+export interface DiffBulk {
+  open: boolean
+  nonce: number
+}
+
 interface FileDiffProps {
   file: DiffFile
   onInject: (text: string) => void
   /** Ask the panel to confirm and revert this file's changes. */
   onDiscard: () => void
+  /** Collapse/expand-all directive from the panel; absent = no bulk control. */
+  bulk?: DiffBulk
 }
 
 // The card must not clip overflow — a clipping ancestor would break the
 // sticky header.
-export function FileDiff({file, onInject, onDiscard}: FileDiffProps) {
+export function FileDiff({file, onInject, onDiscard, bulk}: FileDiffProps) {
   const doc = useMemo(() => buildFileDoc(file), [file])
   const [expanded, setExpanded] = useState(
     !file.binary && doc.lineMeta.length <= LARGE_FILE_LINES,
   )
+  // The nonce guard skips the initial mount so each file keeps its own
+  // large-file default until the user actually triggers a bulk action.
+  const lastNonce = useRef(bulk?.nonce)
+  useEffect(() => {
+    if (bulk && bulk.nonce !== lastNonce.current) {
+      lastNonce.current = bulk.nonce
+      setExpanded(bulk.open)
+    }
+  }, [bulk])
   const Chevron = expanded ? ChevronDown : ChevronRight
   const badge = languageAbbr(file.newPath)
   const {dir, base} = splitPath(file.newPath)
 
   return (
-    <section className="rounded-lg border border-border bg-card">
+    <section>
       <div
-        className={`sticky top-0 z-10 flex w-full items-center gap-2 rounded-t-lg bg-card px-2 py-1 text-xs ${
-          expanded ? "border-b border-border" : "rounded-b-lg"
+        className={`sticky top-0 z-10 flex w-full items-center gap-2 bg-sidebar px-2 py-1 text-xs ${
+          expanded ? "border-b border-border/60" : ""
         }`}
       >
         <button
