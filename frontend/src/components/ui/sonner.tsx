@@ -13,6 +13,9 @@ export function Toaster(props: ToasterProps) {
     <Sonner
       theme={resolvedTheme}
       position="top-right"
+      // Drop the stack below the top bar (h-10 = 2.5rem) so a toast never
+      // lands on the notification and settings buttons in the corner.
+      offset={{ top: "3rem", right: "1rem" }}
       style={
         {
           "--normal-bg": "var(--popover)",
