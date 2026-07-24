@@ -47,10 +47,10 @@ export function FileDiff({file, onInject, onDiscard}: FileDiffProps) {
   const {dir, base} = splitPath(file.newPath)
 
   return (
-    <section className="rounded-md">
+    <section>
       <div
-        className={`sticky top-0 z-10 flex w-full items-center gap-2 rounded-md bg-sidebar px-2 py-1 text-xs ${
-          expanded ? "rounded-b-none border-b border-border/60" : ""
+        className={`sticky top-0 z-10 flex w-full items-center gap-2 bg-sidebar px-2 py-1 text-xs ${
+          expanded ? "border-b border-border/60" : ""
         }`}
       >
         <button
