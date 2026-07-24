@@ -7,13 +7,13 @@ import {useActiveSession} from "@/lib/useActiveSession"
 import {useSessionCwd} from "@/lib/useSessionCwd"
 import {useSessionUsage} from "@/lib/useSessionUsage"
 import {displayPath} from "@/lib/paths"
-import {formatModel} from "@/lib/model-name"
 import {useGitStatus} from "@/lib/useGitStatus"
 import {usePullRequest} from "@/lib/usePullRequest"
 import {useSettings} from "@/lib/settings"
 import {cn} from "@/lib/utils"
 import {DiffStat} from "@/components/DiffStat"
 import {ContextRing, contextColor} from "@/components/ContextRing"
+import {SessionModel} from "@/components/SessionModel"
 import {Separator} from "@/components/ui/separator"
 import {
   Tooltip,
@@ -90,12 +90,7 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
         className="border border-border bg-card text-foreground"
       >
         <div className="flex flex-col gap-1.5">
-          <span className="flex items-center justify-between gap-4">
-            <span className="font-medium">Context window</span>
-            <span className="font-mono text-xs text-muted-foreground">
-              {formatModel(usage.model)}
-            </span>
-          </span>
+          <span className="font-medium">Context window</span>
           <div className={cn("flex items-center gap-2", contextColor(usage.percent))}>
             <span className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
               <span
@@ -199,6 +194,7 @@ export function FooterBar({dock, onDock}: FooterBarProps) {
       )}
 
       <span className="ml-auto flex items-center gap-4">
+        <SessionModel sessionId={sessionId}/>
         {contextReadout}
         {contextReadout && (status?.branch || path) && (
           <Separator orientation="vertical" className="h-4"/>
