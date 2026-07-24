@@ -2,7 +2,9 @@ import { useEffect, useState } from "react"
 import { Store } from "@/lib/rpc"
 import { useProjects } from "@/lib/projects"
 import { binKey } from "@/lib/providers-store"
+import { useSettings } from "@/lib/settings"
 import { Input } from "@/components/ui/input"
+import { Switch } from "@/components/ui/switch"
 import { SettingBlock } from "./SettingBlock"
 
 const GLOBAL_SCOPE = ""
@@ -19,6 +21,7 @@ export function ProviderBinSettings({
   projectId?: string
 }) {
   const { projects } = useProjects()
+  const { showContextUsage, setShowContextUsage } = useSettings()
   const project = projects.find((p) => p.id === projectId)
   const key = binKey(providerId)
   const [globalBin, setGlobalBin] = useState("")
@@ -76,6 +79,21 @@ export function ProviderBinSettings({
             spellCheck={false}
             aria-label={`${providerId} path for ${project.name}`}
             className="w-96 max-w-full font-mono"
+          />
+        </SettingBlock>
+      )}
+
+      {/* Only Claude Code reports context-window usage (via the lich plugin), so
+          the footer readout toggle lives in its section, not the generic hub. */}
+      {providerId === "claude" && (
+        <SettingBlock
+          title="Model & context in the footer"
+          description="Show this session's model and context-window usage in the footer — the model name plus a ring with the percent, read from the transcript."
+        >
+          <Switch
+            checked={showContextUsage}
+            onCheckedChange={setShowContextUsage}
+            aria-label="Show model and context usage in the footer"
           />
         </SettingBlock>
       )}

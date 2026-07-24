@@ -22,6 +22,7 @@ const TERMINAL_FONT_SIZE_STORAGE_KEY = "lich.terminal.fontSize"
 const THEME_STORAGE_KEY = "lich.appearance.theme"
 const ZOOM_STORAGE_KEY = "lich.appearance.zoom"
 const TERMINAL_THEME_STORAGE_KEY = "lich.appearance.terminalTheme"
+const CONTEXT_USAGE_STORAGE_KEY = "lich.footer.contextUsage"
 
 // DEFAULT_FONT is the bundled FiraCode Nerd Font Mono. It is not installed via
 // fontconfig, so it must be offered explicitly alongside the system fonts.
@@ -94,6 +95,11 @@ function readZoom(): number {
   return Number.isFinite(stored) && stored > 0 ? clampZoom(stored) : DEFAULT_ZOOM
 }
 
+// Default on: the footer context readout shows unless the user turned it off.
+function readContextUsage(): boolean {
+  return localStorage.getItem(CONTEXT_USAGE_STORAGE_KEY) !== "false"
+}
+
 interface SettingsValue {
   /** Terminal font family, applied globally across all project terminals. */
   font: string
@@ -118,6 +124,9 @@ interface SettingsValue {
   hotkeys: Hotkeys
   setHotkey: (id: HotkeyId, combo: Combo) => void
   resetHotkey: (id: HotkeyId) => void
+  /** Whether the footer shows the active session's context-window usage. */
+  showContextUsage: boolean
+  setShowContextUsage: (show: boolean) => void
 }
 
 const SettingsContext = createContext<SettingsValue | null>(null)
@@ -134,6 +143,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [terminalTheme, setTerminalThemeState] =
     useState<TerminalTheme>(readTerminalTheme)
   const [hotkeys, setHotkeys] = useState<Hotkeys>(loadHotkeys)
+  const [showContextUsage, setShowContextUsageState] =
+    useState<boolean>(readContextUsage)
 
   const setFont = useCallback((next: string) => {
     setFontState(next)
@@ -186,6 +197,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       saveHotkeys(next)
       return next
     })
+  }, [])
+
+  const setShowContextUsage = useCallback((next: boolean) => {
+    setShowContextUsageState(next)
+    localStorage.setItem(CONTEXT_USAGE_STORAGE_KEY, String(next))
   }, [])
 
   // Toggle the `.dark` class on <html> and track the resolved scheme. For
@@ -279,6 +295,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         hotkeys,
         setHotkey,
         resetHotkey,
+        showContextUsage,
+        setShowContextUsage,
       }}
     >
       {children}

@@ -98,6 +98,7 @@ type Store interface {
 	ProviderBin(providerID, projectID string) string
 	WorktreeSetup(projectID string) string
 	SetProviderSession(sessionID, providerSessionID string) error
+	ProviderSession(sessionID string) (string, error)
 	SetSessionTitle(sessionID, title string) (bool, error)
 }
 
@@ -136,6 +137,14 @@ func New(store Store, env []string, hub *events.Hub) *Service {
 		},
 		func(id, state string) {
 			hub.Emit(statusEventName, statusEvent{ID: id, State: state})
+			// Every non-idle state is a point where a fresh assistant usage line
+			// may have landed — a tool call mid-turn (busy), a prompt (waiting),
+			// or the turn's end (done) — so refresh the context window then, and
+			// off-thread so a stalled emit never blocks the hook's response. Skip
+			// idle (SessionEnd): the session is ending, nothing new to read.
+			if state != "idle" {
+				go s.emitUsage(id)
+			}
 		},
 		func(sessionID, providerSessionID string) error {
 			if err := store.SetProviderSession(sessionID, providerSessionID); err != nil {

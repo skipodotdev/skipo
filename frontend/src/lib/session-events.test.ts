@@ -5,6 +5,7 @@ import {
   isIdEvent,
   isStatusEvent,
   isTitleEvent,
+  isUsageEvent,
   shouldToastAttention,
   toSessionStatus,
 } from "./session-events"
@@ -114,6 +115,32 @@ describe("isAgentEvent", () => {
     expect(isAgentEvent({agent: "claude"})).toBe(false)
     expect(isAgentEvent({id: "s1", agent: 2})).toBe(false)
     expect(isAgentEvent(null)).toBe(false)
+  })
+})
+
+describe("isUsageEvent", () => {
+  const full = {
+    id: "s1",
+    percent: 42,
+    tokens: 84000,
+    window: 200000,
+    model: "claude-opus-4-8",
+    effort: "xhigh",
+  }
+
+  it("accepts a payload carrying id, percent, tokens, window, model and effort", () => {
+    expect(isUsageEvent(full)).toBe(true)
+    expect(isUsageEvent({...full, percent: 0, tokens: 0, effort: ""})).toBe(true)
+  })
+
+  it("rejects a payload missing a field or typed wrong", () => {
+    expect(isUsageEvent({id: "s1", percent: 42, tokens: 84000, window: 200000, model: "x"})).toBe(false)
+    expect(isUsageEvent({...full, window: undefined})).toBe(false)
+    expect(isUsageEvent({...full, model: 5})).toBe(false)
+    expect(isUsageEvent({...full, effort: 3})).toBe(false)
+    expect(isUsageEvent({...full, id: undefined})).toBe(false)
+    expect(isUsageEvent({...full, percent: "42"})).toBe(false)
+    expect(isUsageEvent(null)).toBe(false)
   })
 })
 
